@@ -24,6 +24,8 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
+#include <glib.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -43,44 +45,53 @@
 #include <netinet/in.h>
 #endif
 
-#if defined(_WIN32)
-# define SLIRP_PACKED __attribute__((gcc_struct, packed))
+#if defined(_WIN32) && (defined(__x86_64__) || defined(__i386__))
+#define SLIRP_PACKED __attribute__((gcc_struct, packed))
 #else
-# define SLIRP_PACKED __attribute__((packed))
+#define SLIRP_PACKED __attribute__((packed))
 #endif
 
 #ifndef DIV_ROUND_UP
-#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+#define DIV_ROUND_UP(n, d) (((n) + (d)-1) / (d))
 #endif
 
 #ifndef container_of
-#define container_of(ptr, type, member) __extension__ ({    \
-    void *__mptr = (void *)(ptr);               \
-    ((type *)(__mptr - offsetof(type, member))); })
+#define container_of(ptr, type, member)              \
+    __extension__({                                  \
+        void *__mptr = (void *)(ptr);                \
+        ((type *)(__mptr - offsetof(type, member))); \
+    })
+#endif
+
+#ifndef G_SIZEOF_MEMBER
+#define G_SIZEOF_MEMBER(type, member) sizeof(((type *)0)->member)
 #endif
 
 #if defined(_WIN32) /* CONFIG_IOVEC */
-# if !defined(IOV_MAX) /* XXX: to avoid duplicate with QEMU osdep.h */
+#if !defined(IOV_MAX) /* XXX: to avoid duplicate with QEMU osdep.h */
 struct iovec {
     void *iov_base;
     size_t iov_len;
 };
-# endif
+#endif
 #else
 #include <sys/uio.h>
 #endif
 
+#define stringify(s) tostring(s)
+#define tostring(s) #s
+
 #define SCALE_MS 1000000
 
-#define ETH_ALEN    6
-#define ETH_HLEN    14
-#define ETH_P_IP                  (0x0800)      /* Internet Protocol packet  */
-#define ETH_P_ARP                 (0x0806)      /* Address Resolution packet */
-#define ETH_P_IPV6                (0x86dd)
-#define ETH_P_VLAN                (0x8100)
-#define ETH_P_DVLAN               (0x88a8)
-#define ETH_P_NCSI                (0x88f8)
-#define ETH_P_UNKNOWN             (0xffff)
+#define ETH_ALEN 6
+#define ETH_HLEN 14
+#define ETH_P_IP (0x0800) /* Internet Protocol packet  */
+#define ETH_P_ARP (0x0806) /* Address Resolution packet */
+#define ETH_P_IPV6 (0x86dd)
+#define ETH_P_VLAN (0x8100)
+#define ETH_P_DVLAN (0x88a8)
+#define ETH_P_NCSI (0x88f8)
+#define ETH_P_UNKNOWN (0xffff)
 
 /* FIXME: remove me when made standalone */
 #ifdef _WIN32
@@ -134,8 +145,8 @@ int slirp_closesocket_wrap(int fd);
 #define ioctlsocket slirp_ioctlsocket_wrap
 int slirp_ioctlsocket_wrap(int fd, int req, void *val);
 #define getsockopt slirp_getsockopt_wrap
-int slirp_getsockopt_wrap(int sockfd, int level, int optname,
-                     void *optval, int *optlen);
+int slirp_getsockopt_wrap(int sockfd, int level, int optname, void *optval,
+                          int *optlen);
 #define setsockopt slirp_setsockopt_wrap
 int slirp_setsockopt_wrap(int sockfd, int level, int optname,
                           const void *optval, int optlen);
@@ -171,5 +182,8 @@ static inline int slirp_socket_set_fast_reuse(int fd)
 }
 
 void slirp_pstrcpy(char *buf, int buf_size, const char *str);
+
+int slirp_fmt(char *str, size_t size, const char *format, ...) G_GNUC_PRINTF(3, 4);
+int slirp_fmt0(char *str, size_t size, const char *format, ...) G_GNUC_PRINTF(3, 4);
 
 #endif

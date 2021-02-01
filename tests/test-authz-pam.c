@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -20,6 +20,7 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "qemu/module.h"
 #include "authz/pamacct.h"
 
 #include <security/pam_appl.h>
@@ -27,7 +28,7 @@
 static bool failauth;
 
 /*
- * These two functions are exported by libpam.so.
+ * These three functions are exported by libpam.so.
  *
  * By defining them again here, our impls are resolved
  * by the linker instead of those in libpam.so
@@ -49,6 +50,7 @@ pam_start(const char *service_name, const char *user,
         failauth = false;
     }
 
+    *pamh = (pam_handle_t *)0xbadeaffe;
     return PAM_SUCCESS;
 }
 
@@ -60,6 +62,13 @@ pam_acct_mgmt(pam_handle_t *pamh, int flags)
         return PAM_AUTH_ERR;
     }
 
+    return PAM_SUCCESS;
+}
+
+
+int
+pam_end(pam_handle_t *pamh, int status)
+{
     return PAM_SUCCESS;
 }
 

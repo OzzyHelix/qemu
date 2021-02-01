@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# group: rw
 #
 # Test cases for the QMP 'x-blockdev-reopen' command
 #
@@ -44,7 +45,8 @@ class TestBlockdevReopen(iotests.QMPTestCase):
 
     def setUp(self):
         qemu_img('create', '-f', iotests.imgfmt, hd_path[0], '3M')
-        qemu_img('create', '-f', iotests.imgfmt, '-b', hd_path[0], hd_path[1])
+        qemu_img('create', '-f', iotests.imgfmt, '-b', hd_path[0],
+                 '-F', iotests.imgfmt, hd_path[1])
         qemu_img('create', '-f', iotests.imgfmt, hd_path[2], '3M')
         qemu_io('-f', iotests.imgfmt, '-c', 'write -P 0xa0  0 1M', hd_path[0])
         qemu_io('-f', iotests.imgfmt, '-c', 'write -P 0xa1 1M 1M', hd_path[1])
@@ -478,6 +480,7 @@ class TestBlockdevReopen(iotests.QMPTestCase):
     # This test verifies that we can't change the children of a block
     # device during a reopen operation in a way that would create
     # cycles in the node graph
+    @iotests.skip_if_unsupported(['blkverify'])
     def test_graph_cycles(self):
         opts = []
 
@@ -534,6 +537,7 @@ class TestBlockdevReopen(iotests.QMPTestCase):
         self.assert_qmp(result, 'return', {})
 
     # Misc reopen tests with different block drivers
+    @iotests.skip_if_unsupported(['quorum', 'throttle'])
     def test_misc_drivers(self):
         ####################
         ###### quorum ######
@@ -598,7 +602,7 @@ class TestBlockdevReopen(iotests.QMPTestCase):
         ##################
         ###### null ######
         ##################
-        opts = {'driver': 'null-aio', 'node-name': 'root', 'size': 1024}
+        opts = {'driver': 'null-co', 'node-name': 'root', 'size': 1024}
 
         result = self.vm.qmp('blockdev-add', conv_keys = False, **opts)
         self.assert_qmp(result, 'return', {})
@@ -722,7 +726,9 @@ class TestBlockdevReopen(iotests.QMPTestCase):
 
         # Detach hd2 from hd0.
         self.reopen(opts, {'backing': None})
-        self.reopen(opts, {}, "backing is missing for 'hd0'")
+
+        # Without a backing file, we can omit 'backing' again
+        self.reopen(opts)
 
         # Remove both hd0 and hd2
         result = self.vm.qmp('blockdev-del', conv_keys = True, node_name = 'hd0')
@@ -862,18 +868,19 @@ class TestBlockdevReopen(iotests.QMPTestCase):
 
         # hd2 <- hd0
         result = self.vm.qmp('block-stream', conv_keys = True, job_id = 'stream0',
-                             device = 'hd0', base_node = 'hd2', speed = 512 * 1024)
+                             device = 'hd0', base_node = 'hd2',
+                             auto_finalize = False)
         self.assert_qmp(result, 'return', {})
 
-        # We can't remove hd2 while the stream job is ongoing
+        # We can remove hd2 while the stream job is ongoing
         opts['backing']['backing'] = None
-        self.reopen(opts, {}, "Cannot change 'backing' link from 'hd1' to 'hd2'")
+        self.reopen(opts, {})
 
         # We can't remove hd1 while the stream job is ongoing
         opts['backing'] = None
         self.reopen(opts, {}, "Cannot change 'backing' link from 'hd0' to 'hd1'")
 
-        self.wait_until_completed(drive = 'stream0')
+        self.vm.run_job('stream0', auto_finalize = False, auto_dismiss = True)
 
     # Reopen the chain during a block-stream job (from hd2 to hd1)
     def test_block_stream_4(self):
@@ -886,22 +893,30 @@ class TestBlockdevReopen(iotests.QMPTestCase):
 
         # hd1 <- hd0
         result = self.vm.qmp('block-stream', conv_keys = True, job_id = 'stream0',
-                             device = 'hd1', speed = 512 * 1024)
+                             device = 'hd1', filter_node_name='cor',
+                             auto_finalize = False)
         self.assert_qmp(result, 'return', {})
 
-        # We can't reopen with the original options because that would
-        # make hd1 read-only and block-stream requires it to be read-write
-        self.reopen(opts, {}, "Can't set node 'hd1' to r/o with copy-on-read enabled")
+        # We can't reopen with the original options because there is a filter
+        # inserted by stream job above hd1.
+        self.reopen(opts, {},
+                    "Cannot change the option 'backing.backing.file.node-name'")
+
+        # We can't reopen hd1 to read-only, as block-stream requires it to be
+        # read-write
+        self.reopen(opts['backing'], {'read-only': True},
+                    "Cannot make block node read-only, there is a writer on it")
 
         # We can't remove hd2 while the stream job is ongoing
         opts['backing']['backing'] = None
-        self.reopen(opts, {'backing.read-only': False}, "Cannot change 'backing' link from 'hd1' to 'hd2'")
+        self.reopen(opts['backing'], {'read-only': False},
+                    "Cannot change 'backing' link from 'hd1' to 'hd2'")
 
         # We can detach hd1 from hd0 because it doesn't affect the stream job
         opts['backing'] = None
         self.reopen(opts)
 
-        self.wait_until_completed(drive = 'stream0')
+        self.vm.run_job('stream0', auto_finalize = False, auto_dismiss = True)
 
     # Reopen the chain during a block-commit job (from hd0 to hd2)
     def test_block_commit_1(self):
@@ -913,7 +928,7 @@ class TestBlockdevReopen(iotests.QMPTestCase):
         self.assert_qmp(result, 'return', {})
 
         result = self.vm.qmp('block-commit', conv_keys = True, job_id = 'commit0',
-                             device = 'hd0', speed = 1024 * 1024)
+                             device = 'hd0')
         self.assert_qmp(result, 'return', {})
 
         # We can't remove hd2 while the commit job is ongoing
@@ -944,7 +959,8 @@ class TestBlockdevReopen(iotests.QMPTestCase):
         self.assert_qmp(result, 'return', {})
 
         result = self.vm.qmp('block-commit', conv_keys = True, job_id = 'commit0',
-                             device = 'hd0', top_node = 'hd1', speed = 1024 * 1024)
+                             device = 'hd0', top_node = 'hd1',
+                             auto_finalize = False)
         self.assert_qmp(result, 'return', {})
 
         # We can't remove hd2 while the commit job is ongoing
@@ -956,14 +972,13 @@ class TestBlockdevReopen(iotests.QMPTestCase):
         self.reopen(opts, {}, "Cannot change backing link if 'hd0' has an implicit backing file")
 
         # hd2 <- hd0
-        self.wait_until_completed(drive = 'commit0')
+        self.vm.run_job('commit0', auto_finalize = False, auto_dismiss = True)
 
         self.assert_qmp(self.get_node('hd0'), 'ro', False)
         self.assertEqual(self.get_node('hd1'), None)
         self.assert_qmp(self.get_node('hd2'), 'ro', True)
 
-    # We don't allow setting a backing file that uses a different AioContext
-    def test_iothreads(self):
+    def run_test_iothreads(self, iothread_a, iothread_b, errmsg = None):
         opts = hd_opts(0)
         result = self.vm.qmp('blockdev-add', conv_keys = False, **opts)
         self.assert_qmp(result, 'return', {})
@@ -978,21 +993,48 @@ class TestBlockdevReopen(iotests.QMPTestCase):
         result = self.vm.qmp('object-add', qom_type='iothread', id='iothread1')
         self.assert_qmp(result, 'return', {})
 
-        result = self.vm.qmp('x-blockdev-set-iothread', node_name='hd0', iothread='iothread0')
+        result = self.vm.qmp('device_add', driver='virtio-scsi', id='scsi0',
+                             iothread=iothread_a)
         self.assert_qmp(result, 'return', {})
 
-        self.reopen(opts, {'backing': 'hd2'}, "Cannot use a new backing file with a different AioContext")
-
-        result = self.vm.qmp('x-blockdev-set-iothread', node_name='hd2', iothread='iothread1')
+        result = self.vm.qmp('device_add', driver='virtio-scsi', id='scsi1',
+                             iothread=iothread_b)
         self.assert_qmp(result, 'return', {})
 
-        self.reopen(opts, {'backing': 'hd2'}, "Cannot use a new backing file with a different AioContext")
+        if iothread_a:
+            result = self.vm.qmp('device_add', driver='scsi-hd', drive='hd0',
+                                 share_rw=True, bus="scsi0.0")
+            self.assert_qmp(result, 'return', {})
 
-        result = self.vm.qmp('x-blockdev-set-iothread', node_name='hd2', iothread='iothread0')
-        self.assert_qmp(result, 'return', {})
+        if iothread_b:
+            result = self.vm.qmp('device_add', driver='scsi-hd', drive='hd2',
+                                 share_rw=True, bus="scsi1.0")
+            self.assert_qmp(result, 'return', {})
 
-        self.reopen(opts, {'backing': 'hd2'})
+        # Attaching the backing file may or may not work
+        self.reopen(opts, {'backing': 'hd2'}, errmsg)
+
+        # But removing the backing file should always work
+        self.reopen(opts, {'backing': None})
+
+        self.vm.shutdown()
+
+    # We don't allow setting a backing file that uses a different AioContext if
+    # neither of them can switch to the other AioContext
+    def test_iothreads_error(self):
+        self.run_test_iothreads('iothread0', 'iothread1',
+                                "Cannot change iothread of active block backend")
+
+    def test_iothreads_compatible_users(self):
+        self.run_test_iothreads('iothread0', 'iothread0')
+
+    def test_iothreads_switch_backing(self):
+        self.run_test_iothreads('iothread0', None)
+
+    def test_iothreads_switch_overlay(self):
+        self.run_test_iothreads(None, 'iothread0')
 
 if __name__ == '__main__':
+    iotests.activate_logging()
     iotests.main(supported_fmts=["qcow2"],
                  supported_protocols=["file"])

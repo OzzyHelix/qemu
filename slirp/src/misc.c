@@ -4,33 +4,32 @@
  */
 
 #include "slirp.h"
+#ifdef G_OS_UNIX
+#include <sys/un.h>
+#endif
 
-inline void
-insque(void *a, void *b)
+inline void insque(void *a, void *b)
 {
-	register struct quehead *element = (struct quehead *) a;
-	register struct quehead *head = (struct quehead *) b;
-	element->qh_link = head->qh_link;
-	head->qh_link = (struct quehead *)element;
-	element->qh_rlink = (struct quehead *)head;
-	((struct quehead *)(element->qh_link))->qh_rlink
-	= (struct quehead *)element;
+    register struct quehead *element = (struct quehead *)a;
+    register struct quehead *head = (struct quehead *)b;
+    element->qh_link = head->qh_link;
+    head->qh_link = (struct quehead *)element;
+    element->qh_rlink = (struct quehead *)head;
+    ((struct quehead *)(element->qh_link))->qh_rlink =
+        (struct quehead *)element;
 }
 
-inline void
-remque(void *a)
+inline void remque(void *a)
 {
-  register struct quehead *element = (struct quehead *) a;
-  ((struct quehead *)(element->qh_link))->qh_rlink = element->qh_rlink;
-  ((struct quehead *)(element->qh_rlink))->qh_link = element->qh_link;
-  element->qh_rlink = NULL;
+    register struct quehead *element = (struct quehead *)a;
+    ((struct quehead *)(element->qh_link))->qh_rlink = element->qh_rlink;
+    ((struct quehead *)(element->qh_rlink))->qh_link = element->qh_link;
+    element->qh_rlink = NULL;
 }
 
 /* TODO: IPv6 */
-struct gfwd_list *
-add_guestfwd(struct gfwd_list **ex_ptr,
-             SlirpWriteCb write_cb, void *opaque,
-             struct in_addr addr, int port)
+struct gfwd_list *add_guestfwd(struct gfwd_list **ex_ptr, SlirpWriteCb write_cb,
+                               void *opaque, struct in_addr addr, int port)
 {
     struct gfwd_list *f = g_new0(struct gfwd_list, 1);
 
@@ -44,9 +43,8 @@ add_guestfwd(struct gfwd_list **ex_ptr,
     return f;
 }
 
-struct gfwd_list *
-add_exec(struct gfwd_list **ex_ptr, const char *cmdline,
-         struct in_addr addr, int port)
+struct gfwd_list *add_exec(struct gfwd_list **ex_ptr, const char *cmdline,
+                           struct in_addr addr, int port)
 {
     struct gfwd_list *f = add_guestfwd(ex_ptr, NULL, NULL, addr, port);
 
@@ -55,8 +53,31 @@ add_exec(struct gfwd_list **ex_ptr, const char *cmdline,
     return f;
 }
 
-static int
-slirp_socketpair_with_oob(int sv[2])
+struct gfwd_list *add_unix(struct gfwd_list **ex_ptr, const char *unixsock,
+                           struct in_addr addr, int port)
+{
+    struct gfwd_list *f = add_guestfwd(ex_ptr, NULL, NULL, addr, port);
+
+    f->ex_unix = g_strdup(unixsock);
+
+    return f;
+}
+
+int remove_guestfwd(struct gfwd_list **ex_ptr, struct in_addr addr, int port)
+{
+    for (; *ex_ptr != NULL; ex_ptr = &((*ex_ptr)->ex_next)) {
+        struct gfwd_list *f = *ex_ptr;
+        if (f->ex_addr.s_addr == addr.s_addr && f->ex_fport == port) {
+            *ex_ptr = f->ex_next;
+            g_free(f->ex_exec);
+            g_free(f);
+            return 0;
+        }
+    }
+    return -1;
+}
+
+static int slirp_socketpair_with_oob(int sv[2])
 {
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
@@ -111,8 +132,7 @@ err:
     return -1;
 }
 
-static void
-fork_exec_child_setup(gpointer data)
+static void fork_exec_child_setup(gpointer data)
 {
 #ifndef _WIN32
     setsid();
@@ -131,8 +151,7 @@ typedef struct SlirpGSpawnFds {
     gint stderr_fd;
 } SlirpGSpawnFds;
 
-static inline void
-slirp_gspawn_fds_setup(gpointer user_data)
+static inline void slirp_gspawn_fds_setup(gpointer user_data)
 {
     SlirpGSpawnFds *q = (SlirpGSpawnFds *)user_data;
 
@@ -144,23 +163,16 @@ slirp_gspawn_fds_setup(gpointer user_data)
 #endif
 
 static inline gboolean
-g_spawn_async_with_fds_slirp(const gchar *working_directory,
-                            gchar **argv,
-                            gchar **envp,
-                            GSpawnFlags flags,
-                            GSpawnChildSetupFunc child_setup,
-                            gpointer user_data,
-                            GPid *child_pid,
-                            gint stdin_fd,
-                            gint stdout_fd,
-                            gint stderr_fd,
-                            GError **error)
+g_spawn_async_with_fds_slirp(const gchar *working_directory, gchar **argv,
+                             gchar **envp, GSpawnFlags flags,
+                             GSpawnChildSetupFunc child_setup,
+                             gpointer user_data, GPid *child_pid, gint stdin_fd,
+                             gint stdout_fd, gint stderr_fd, GError **error)
 {
 #if GLIB_CHECK_VERSION(2, 58, 0)
     return g_spawn_async_with_fds(working_directory, argv, envp, flags,
-                                  child_setup, user_data,
-                                  child_pid, stdin_fd, stdout_fd, stderr_fd,
-                                  error);
+                                  child_setup, user_data, child_pid, stdin_fd,
+                                  stdout_fd, stderr_fd, error);
 #else
     SlirpGSpawnFds setup = {
         .child_setup = child_setup,
@@ -171,8 +183,7 @@ g_spawn_async_with_fds_slirp(const gchar *working_directory,
     };
 
     return g_spawn_async(working_directory, argv, envp, flags,
-                         slirp_gspawn_fds_setup, &setup,
-                         child_pid, error);
+                         slirp_gspawn_fds_setup, &setup, child_pid, error);
 #endif
 }
 
@@ -181,11 +192,11 @@ g_spawn_async_with_fds_slirp(const gchar *working_directory,
 
 #pragma GCC diagnostic pop
 
-int
-fork_exec(struct socket *so, const char *ex)
+int fork_exec(struct socket *so, const char *ex)
 {
     GError *err = NULL;
-    char **argv;
+    gint argc = 0;
+    gchar **argv = NULL;
     int opt, sp[2];
 
     DEBUG_CALL("fork_exec");
@@ -196,15 +207,16 @@ fork_exec(struct socket *so, const char *ex)
         return 0;
     }
 
-    argv = g_strsplit(ex, " ", -1);
-    g_spawn_async_with_fds(NULL /* cwd */,
-                           argv,
-                           NULL /* env */,
-                           G_SPAWN_SEARCH_PATH,
-                           fork_exec_child_setup, NULL /* data */,
-                           NULL /* child_pid */,
-                           sp[1], sp[1], sp[1],
-                           &err);
+    if (!g_shell_parse_argv(ex, &argc, &argv, &err)) {
+        g_critical("fork_exec invalid command: %s\nerror: %s", ex, err->message);
+        g_error_free(err);
+        return 0;
+    }
+
+    g_spawn_async_with_fds(NULL /* cwd */, argv, NULL /* env */,
+                           G_SPAWN_SEARCH_PATH, fork_exec_child_setup,
+                           NULL /* data */, NULL /* child_pid */, sp[1], sp[1],
+                           sp[1], &err);
     g_strfreev(argv);
 
     if (err) {
@@ -225,21 +237,55 @@ fork_exec(struct socket *so, const char *ex)
     return 1;
 }
 
+int open_unix(struct socket *so, const char *unixpath)
+{
+#ifdef G_OS_UNIX
+    struct sockaddr_un sa;
+    int s;
+
+    DEBUG_CALL("open_unix");
+    DEBUG_ARG("so = %p", so);
+    DEBUG_ARG("unixpath = %s", unixpath);
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sun_family = AF_UNIX;
+    if (g_strlcpy(sa.sun_path, unixpath, sizeof(sa.sun_path)) >= sizeof(sa.sun_path)) {
+        g_critical("Bad unix path: %s", unixpath);
+        return 0;
+    }
+
+    s = slirp_socket(PF_UNIX, SOCK_STREAM, 0);
+    if (s < 0) {
+        g_critical("open_unix(): %s", strerror(errno));
+        return 0;
+    }
+
+    if (connect(s, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+        g_critical("open_unix(): %s", strerror(errno));
+        closesocket(s);
+        return 0;
+    }
+
+    so->s = s;
+    slirp_set_nonblock(so->s);
+    so->slirp->cb->register_poll_fd(so->s, so->slirp->opaque);
+
+    return 1;
+#else
+    g_assert_not_reached();
+#endif
+}
+
 char *slirp_connection_info(Slirp *slirp)
 {
     GString *str = g_string_new(NULL);
-    const char * const tcpstates[] = {
-        [TCPS_CLOSED]       = "CLOSED",
-        [TCPS_LISTEN]       = "LISTEN",
-        [TCPS_SYN_SENT]     = "SYN_SENT",
-        [TCPS_SYN_RECEIVED] = "SYN_RCVD",
-        [TCPS_ESTABLISHED]  = "ESTABLISHED",
-        [TCPS_CLOSE_WAIT]   = "CLOSE_WAIT",
-        [TCPS_FIN_WAIT_1]   = "FIN_WAIT_1",
-        [TCPS_CLOSING]      = "CLOSING",
-        [TCPS_LAST_ACK]     = "LAST_ACK",
-        [TCPS_FIN_WAIT_2]   = "FIN_WAIT_2",
-        [TCPS_TIME_WAIT]    = "TIME_WAIT",
+    const char *const tcpstates[] = {
+        [TCPS_CLOSED] = "CLOSED",           [TCPS_LISTEN] = "LISTEN",
+        [TCPS_SYN_SENT] = "SYN_SENT",       [TCPS_SYN_RECEIVED] = "SYN_RCVD",
+        [TCPS_ESTABLISHED] = "ESTABLISHED", [TCPS_CLOSE_WAIT] = "CLOSE_WAIT",
+        [TCPS_FIN_WAIT_1] = "FIN_WAIT_1",   [TCPS_CLOSING] = "CLOSING",
+        [TCPS_LAST_ACK] = "LAST_ACK",       [TCPS_FIN_WAIT_2] = "FIN_WAIT_2",
+        [TCPS_TIME_WAIT] = "TIME_WAIT",
     };
     struct in_addr dst_addr;
     struct sockaddr_in src;
@@ -250,8 +296,8 @@ char *slirp_connection_info(Slirp *slirp)
     char buf[20];
 
     g_string_append_printf(str,
-        "  Protocol[State]    FD  Source Address  Port   "
-        "Dest. Address  Port RecvQ SendQ\n");
+                           "  Protocol[State]    FD  Source Address  Port   "
+                           "Dest. Address  Port RecvQ SendQ\n");
 
     /* TODO: IPv6 */
 
@@ -274,48 +320,71 @@ char *slirp_connection_info(Slirp *slirp)
             dst_addr = so->so_faddr;
             dst_port = so->so_fport;
         }
-        snprintf(buf, sizeof(buf), "  TCP[%s]", state);
+        slirp_fmt0(buf, sizeof(buf), "  TCP[%s]", state);
         g_string_append_printf(str, "%-19s %3d %15s %5d ", buf, so->s,
-                       src.sin_addr.s_addr ? inet_ntoa(src.sin_addr) : "*",
-                       ntohs(src.sin_port));
-        g_string_append_printf(str, "%15s %5d %5d %5d\n",
-                       inet_ntoa(dst_addr), ntohs(dst_port),
-                       so->so_rcv.sb_cc, so->so_snd.sb_cc);
+                               src.sin_addr.s_addr ? inet_ntoa(src.sin_addr) :
+                                                     "*",
+                               ntohs(src.sin_port));
+        g_string_append_printf(str, "%15s %5d %5d %5d\n", inet_ntoa(dst_addr),
+                               ntohs(dst_port), so->so_rcv.sb_cc,
+                               so->so_snd.sb_cc);
     }
 
     for (so = slirp->udb.so_next; so != &slirp->udb; so = so->so_next) {
         if (so->so_state & SS_HOSTFWD) {
-            snprintf(buf, sizeof(buf), "  UDP[HOST_FORWARD]");
+            slirp_fmt0(buf, sizeof(buf), "  UDP[HOST_FORWARD]");
             src_len = sizeof(src);
             getsockname(so->s, (struct sockaddr *)&src, &src_len);
             dst_addr = so->so_laddr;
             dst_port = so->so_lport;
         } else {
-            snprintf(buf, sizeof(buf), "  UDP[%d sec]",
-                         (so->so_expire - curtime) / 1000);
+            slirp_fmt0(buf, sizeof(buf), "  UDP[%d sec]",
+                       (so->so_expire - curtime) / 1000);
             src.sin_addr = so->so_laddr;
             src.sin_port = so->so_lport;
             dst_addr = so->so_faddr;
             dst_port = so->so_fport;
         }
         g_string_append_printf(str, "%-19s %3d %15s %5d ", buf, so->s,
-                       src.sin_addr.s_addr ? inet_ntoa(src.sin_addr) : "*",
-                       ntohs(src.sin_port));
-        g_string_append_printf(str, "%15s %5d %5d %5d\n",
-                       inet_ntoa(dst_addr), ntohs(dst_port),
-                       so->so_rcv.sb_cc, so->so_snd.sb_cc);
+                               src.sin_addr.s_addr ? inet_ntoa(src.sin_addr) :
+                                                     "*",
+                               ntohs(src.sin_port));
+        g_string_append_printf(str, "%15s %5d %5d %5d\n", inet_ntoa(dst_addr),
+                               ntohs(dst_port), so->so_rcv.sb_cc,
+                               so->so_snd.sb_cc);
     }
 
     for (so = slirp->icmp.so_next; so != &slirp->icmp; so = so->so_next) {
-        snprintf(buf, sizeof(buf), "  ICMP[%d sec]",
-                     (so->so_expire - curtime) / 1000);
+        slirp_fmt0(buf, sizeof(buf), "  ICMP[%d sec]",
+                   (so->so_expire - curtime) / 1000);
         src.sin_addr = so->so_laddr;
         dst_addr = so->so_faddr;
         g_string_append_printf(str, "%-19s %3d %15s  -    ", buf, so->s,
-                       src.sin_addr.s_addr ? inet_ntoa(src.sin_addr) : "*");
+                               src.sin_addr.s_addr ? inet_ntoa(src.sin_addr) :
+                                                     "*");
         g_string_append_printf(str, "%15s  -    %5d %5d\n", inet_ntoa(dst_addr),
-                       so->so_rcv.sb_cc, so->so_snd.sb_cc);
+                               so->so_rcv.sb_cc, so->so_snd.sb_cc);
     }
 
     return g_string_free(str, FALSE);
+}
+
+int slirp_bind_outbound(struct socket *so, unsigned short af)
+{
+    int ret = 0;
+    struct sockaddr *addr = NULL;
+    int addr_size = 0;
+
+    if (af == AF_INET && so->slirp->outbound_addr != NULL) {
+        addr = (struct sockaddr *)so->slirp->outbound_addr;
+        addr_size = sizeof(struct sockaddr_in);
+    } else if (af == AF_INET6 && so->slirp->outbound_addr6 != NULL) {
+        addr = (struct sockaddr *)so->slirp->outbound_addr6;
+        addr_size = sizeof(struct sockaddr_in6);
+    }
+
+    if (addr != NULL) {
+        ret = bind(so->s, addr, addr_size);
+    }
+    return ret;
 }

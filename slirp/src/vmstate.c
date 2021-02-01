@@ -49,7 +49,7 @@ static int get_nullptr(SlirpIStream *f, void *pv, size_t size,
                        const VMStateField *field)
 {
     if (slirp_istream_read_u8(f) == VMS_NULLPTR_MARKER) {
-        return  0;
+        return 0;
     }
     g_warning("vmstate: get_nullptr expected VMS_NULLPTR_MARKER");
     return -EINVAL;
@@ -69,20 +69,22 @@ static int put_nullptr(SlirpOStream *f, void *pv, size_t size,
 
 const VMStateInfo slirp_vmstate_info_nullptr = {
     .name = "uint64",
-    .get  = get_nullptr,
-    .put  = put_nullptr,
+    .get = get_nullptr,
+    .put = put_nullptr,
 };
 
 /* 8 bit unsigned int */
 
-static int get_uint8(SlirpIStream *f, void *pv, size_t size, const VMStateField *field)
+static int get_uint8(SlirpIStream *f, void *pv, size_t size,
+                     const VMStateField *field)
 {
     uint8_t *v = pv;
     *v = slirp_istream_read_u8(f);
     return 0;
 }
 
-static int put_uint8(SlirpOStream *f, void *pv, size_t size, const VMStateField *field)
+static int put_uint8(SlirpOStream *f, void *pv, size_t size,
+                     const VMStateField *field)
 {
     uint8_t *v = pv;
     slirp_ostream_write_u8(f, *v);
@@ -91,8 +93,8 @@ static int put_uint8(SlirpOStream *f, void *pv, size_t size, const VMStateField 
 
 const VMStateInfo slirp_vmstate_info_uint8 = {
     .name = "uint8",
-    .get  = get_uint8,
-    .put  = put_uint8,
+    .get = get_uint8,
+    .put = put_uint8,
 };
 
 /* 16 bit unsigned int */
@@ -115,8 +117,8 @@ static int put_uint16(SlirpOStream *f, void *pv, size_t size,
 
 const VMStateInfo slirp_vmstate_info_uint16 = {
     .name = "uint16",
-    .get  = get_uint16,
-    .put  = put_uint16,
+    .get = get_uint16,
+    .put = put_uint16,
 };
 
 /* 32 bit unsigned int */
@@ -139,20 +141,22 @@ static int put_uint32(SlirpOStream *f, void *pv, size_t size,
 
 const VMStateInfo slirp_vmstate_info_uint32 = {
     .name = "uint32",
-    .get  = get_uint32,
-    .put  = put_uint32,
+    .get = get_uint32,
+    .put = put_uint32,
 };
 
 /* 16 bit int */
 
-static int get_int16(SlirpIStream *f, void *pv, size_t size, const VMStateField *field)
+static int get_int16(SlirpIStream *f, void *pv, size_t size,
+                     const VMStateField *field)
 {
     int16_t *v = pv;
     *v = slirp_istream_read_i16(f);
     return 0;
 }
 
-static int put_int16(SlirpOStream *f, void *pv, size_t size, const VMStateField *field)
+static int put_int16(SlirpOStream *f, void *pv, size_t size,
+                     const VMStateField *field)
 {
     int16_t *v = pv;
     slirp_ostream_write_i16(f, *v);
@@ -161,20 +165,22 @@ static int put_int16(SlirpOStream *f, void *pv, size_t size, const VMStateField 
 
 const VMStateInfo slirp_vmstate_info_int16 = {
     .name = "int16",
-    .get  = get_int16,
-    .put  = put_int16,
+    .get = get_int16,
+    .put = put_int16,
 };
 
 /* 32 bit int */
 
-static int get_int32(SlirpIStream *f, void *pv, size_t size, const VMStateField *field)
+static int get_int32(SlirpIStream *f, void *pv, size_t size,
+                     const VMStateField *field)
 {
     int32_t *v = pv;
     *v = slirp_istream_read_i32(f);
     return 0;
 }
 
-static int put_int32(SlirpOStream *f, void *pv, size_t size, const VMStateField *field)
+static int put_int32(SlirpOStream *f, void *pv, size_t size,
+                     const VMStateField *field)
 {
     int32_t *v = pv;
     slirp_ostream_write_i32(f, *v);
@@ -183,8 +189,8 @@ static int put_int32(SlirpOStream *f, void *pv, size_t size, const VMStateField 
 
 const VMStateInfo slirp_vmstate_info_int32 = {
     .name = "int32",
-    .get  = get_int32,
-    .put  = put_int32,
+    .get = get_int32,
+    .put = put_int32,
 };
 
 /* vmstate_info_tmp, see VMSTATE_WITH_TMP, the idea is that we allocate
@@ -193,7 +199,8 @@ const VMStateInfo slirp_vmstate_info_int32 = {
  * in fields that don't really exist in the parent but need to be in the
  * stream.
  */
-static int get_tmp(SlirpIStream *f, void *pv, size_t size, const VMStateField *field)
+static int get_tmp(SlirpIStream *f, void *pv, size_t size,
+                   const VMStateField *field)
 {
     int ret;
     const VMStateDescription *vmsd = field->vmsd;
@@ -207,7 +214,8 @@ static int get_tmp(SlirpIStream *f, void *pv, size_t size, const VMStateField *f
     return ret;
 }
 
-static int put_tmp(SlirpOStream *f, void *pv, size_t size, const VMStateField *field)
+static int put_tmp(SlirpOStream *f, void *pv, size_t size,
+                   const VMStateField *field)
 {
     const VMStateDescription *vmsd = field->vmsd;
     void *tmp = g_malloc(size);
@@ -245,8 +253,8 @@ static int put_buffer(SlirpOStream *f, void *pv, size_t size,
 
 const VMStateInfo slirp_vmstate_info_buffer = {
     .name = "buffer",
-    .get  = get_buffer,
-    .put  = put_buffer,
+    .get = get_buffer,
+    .put = put_buffer,
 };
 
 static int vmstate_n_elems(void *opaque, const VMStateField *field)
@@ -286,9 +294,8 @@ static int vmstate_size(void *opaque, const VMStateField *field)
     return size;
 }
 
-static int
-vmstate_save_state_v(SlirpOStream *f, const VMStateDescription *vmsd,
-                     void *opaque, int version_id)
+static int vmstate_save_state_v(SlirpOStream *f, const VMStateDescription *vmsd,
+                                void *opaque, int version_id)
 {
     int ret = 0;
     const VMStateField *field = vmsd->fields;
@@ -302,10 +309,8 @@ vmstate_save_state_v(SlirpOStream *f, const VMStateDescription *vmsd,
     }
 
     while (field->name) {
-        if ((field->field_exists &&
-             field->field_exists(opaque, version_id)) ||
-            (!field->field_exists &&
-             field->version_id <= version_id)) {
+        if ((field->field_exists && field->field_exists(opaque, version_id)) ||
+            (!field->field_exists && field->version_id <= version_id)) {
             void *first_elem = opaque + field->offset;
             int i, n_elems = vmstate_n_elems(opaque, field);
             int size = vmstate_size(opaque, field);
@@ -316,7 +321,6 @@ vmstate_save_state_v(SlirpOStream *f, const VMStateDescription *vmsd,
             }
             for (i = 0; i < n_elems; i++) {
                 void *curr_elem = first_elem + size * i;
-                ret = 0;
 
                 if (field->flags & VMS_ARRAY_OF_POINTER) {
                     assert(curr_elem);
@@ -325,7 +329,8 @@ vmstate_save_state_v(SlirpOStream *f, const VMStateDescription *vmsd,
                 if (!curr_elem && size) {
                     /* if null pointer write placeholder and do not follow */
                     assert(field->flags & VMS_ARRAY_OF_POINTER);
-                    ret = slirp_vmstate_info_nullptr.put(f, curr_elem, size, NULL);
+                    ret = slirp_vmstate_info_nullptr.put(f, curr_elem, size,
+                                                         NULL);
                 } else if (field->flags & VMS_STRUCT) {
                     ret = slirp_vmstate_save_state(f, field->vmsd, curr_elem);
                 } else if (field->flags & VMS_VSTRUCT) {
@@ -335,15 +340,15 @@ vmstate_save_state_v(SlirpOStream *f, const VMStateDescription *vmsd,
                     ret = field->info->put(f, curr_elem, size, field);
                 }
                 if (ret) {
-                    g_warning("Save of field %s/%s failed",
-                              vmsd->name, field->name);
+                    g_warning("Save of field %s/%s failed", vmsd->name,
+                              field->name);
                     return ret;
                 }
             }
         } else {
             if (field->flags & VMS_MUST_EXIST) {
-                g_warning("Output state validation failed: %s/%s",
-                          vmsd->name, field->name);
+                g_warning("Output state validation failed: %s/%s", vmsd->name,
+                          field->name);
                 assert(!(field->flags & VMS_MUST_EXIST));
             }
         }
@@ -389,10 +394,8 @@ int slirp_vmstate_load_state(SlirpIStream *f, const VMStateDescription *vmsd,
         }
     }
     while (field->name) {
-        if ((field->field_exists &&
-             field->field_exists(opaque, version_id)) ||
-            (!field->field_exists &&
-             field->version_id <= version_id)) {
+        if ((field->field_exists && field->field_exists(opaque, version_id)) ||
+            (!field->field_exists && field->version_id <= version_id)) {
             void *first_elem = opaque + field->offset;
             int i, n_elems = vmstate_n_elems(opaque, field);
             int size = vmstate_size(opaque, field);
@@ -411,25 +414,25 @@ int slirp_vmstate_load_state(SlirpIStream *f, const VMStateDescription *vmsd,
                 if (!curr_elem && size) {
                     /* if null pointer check placeholder and do not follow */
                     assert(field->flags & VMS_ARRAY_OF_POINTER);
-                    ret = slirp_vmstate_info_nullptr.get(f, curr_elem, size, NULL);
+                    ret = slirp_vmstate_info_nullptr.get(f, curr_elem, size,
+                                                         NULL);
                 } else if (field->flags & VMS_STRUCT) {
                     ret = slirp_vmstate_load_state(f, field->vmsd, curr_elem,
-                                             field->vmsd->version_id);
+                                                   field->vmsd->version_id);
                 } else if (field->flags & VMS_VSTRUCT) {
                     ret = slirp_vmstate_load_state(f, field->vmsd, curr_elem,
-                                             field->struct_version_id);
+                                                   field->struct_version_id);
                 } else {
                     ret = field->info->get(f, curr_elem, size, field);
                 }
                 if (ret < 0) {
-                    g_warning("Failed to load %s:%s", vmsd->name,
-                              field->name);
+                    g_warning("Failed to load %s:%s", vmsd->name, field->name);
                     return ret;
                 }
             }
         } else if (field->flags & VMS_MUST_EXIST) {
-            g_warning("Input validation failed: %s/%s",
-                      vmsd->name, field->name);
+            g_warning("Input validation failed: %s/%s", vmsd->name,
+                      field->name);
             return -1;
         }
         field++;

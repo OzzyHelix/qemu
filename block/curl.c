@@ -25,6 +25,7 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
+#include "qemu/module.h"
 #include "qemu/option.h"
 #include "block/block_int.h"
 #include "qapi/qmp/qdict.h"
@@ -35,26 +36,6 @@
 #include "trace.h"
 
 // #define DEBUG_VERBOSE
-
-#if LIBCURL_VERSION_NUM >= 0x071000
-/* The multi interface timer callback was introduced in 7.16.0 */
-#define NEED_CURL_TIMER_CALLBACK
-#define HAVE_SOCKET_ACTION
-#endif
-
-#ifndef HAVE_SOCKET_ACTION
-/* If curl_multi_socket_action isn't available, define it statically here in
- * terms of curl_multi_socket. Note that ev_bitmask will be ignored, which is
- * less efficient but still safe. */
-static CURLMcode __curl_multi_socket_action(CURLM *multi_handle,
-                                            curl_socket_t sockfd,
-                                            int ev_bitmask,
-                                            int *running_handles)
-{
-    return curl_multi_socket(multi_handle, sockfd, running_handles);
-}
-#define curl_multi_socket_action __curl_multi_socket_action
-#endif
 
 #define PROTOCOLS (CURLPROTO_HTTP | CURLPROTO_HTTPS | \
                    CURLPROTO_FTP | CURLPROTO_FTPS)
@@ -139,7 +120,6 @@ typedef struct BDRVCURLState {
 static void curl_clean_state(CURLState *s);
 static void curl_multi_do(void *arg);
 
-#ifdef NEED_CURL_TIMER_CALLBACK
 /* Called from curl_multi_do_locked, with s->mutex held.  */
 static int curl_timer_cb(CURLM *multi, long timeout_ms, void *opaque)
 {
@@ -155,7 +135,6 @@ static int curl_timer_cb(CURLM *multi, long timeout_ms, void *opaque)
     }
     return 0;
 }
-#endif
 
 /* Called from curl_multi_do_locked, with s->mutex held.  */
 static int curl_sock_cb(CURL *curl, curl_socket_t fd, int action,
@@ -213,11 +192,35 @@ static size_t curl_header_cb(void *ptr, size_t size, size_t nmemb, void *opaque)
 {
     BDRVCURLState *s = opaque;
     size_t realsize = size * nmemb;
-    const char *accept_line = "Accept-Ranges: bytes";
+    const char *header = (char *)ptr;
+    const char *end = header + realsize;
+    const char *accept_ranges = "accept-ranges:";
+    const char *bytes = "bytes";
 
-    if (realsize >= strlen(accept_line)
-        && strncmp((char *)ptr, accept_line, strlen(accept_line)) == 0) {
-        s->accept_range = true;
+    if (realsize >= strlen(accept_ranges)
+        && g_ascii_strncasecmp(header, accept_ranges,
+                               strlen(accept_ranges)) == 0) {
+
+        char *p = strchr(header, ':') + 1;
+
+        /* Skip whitespace between the header name and value. */
+        while (p < end && *p && g_ascii_isspace(*p)) {
+            p++;
+        }
+
+        if (end - p >= strlen(bytes)
+            && strncmp(p, bytes, strlen(bytes)) == 0) {
+
+            /* Check that there is nothing but whitespace after the value. */
+            p += strlen(bytes);
+            while (p < end && *p && g_ascii_isspace(*p)) {
+                p++;
+            }
+
+            if (p == end || !*p) {
+                s->accept_range = true;
+            }
+        }
     }
 
     return realsize;
@@ -408,7 +411,6 @@ static void curl_multi_do(void *arg)
 
 static void curl_multi_timeout_do(void *arg)
 {
-#ifdef NEED_CURL_TIMER_CALLBACK
     BDRVCURLState *s = (BDRVCURLState *)arg;
     int running;
 
@@ -421,9 +423,6 @@ static void curl_multi_timeout_do(void *arg)
 
     curl_multi_check_completion(s);
     qemu_mutex_unlock(&s->mutex);
-#else
-    abort();
-#endif
 }
 
 /* Called with s->mutex held.  */
@@ -539,23 +538,23 @@ static void curl_detach_aio_context(BlockDriverState *bs)
     BDRVCURLState *s = bs->opaque;
     int i;
 
-    qemu_mutex_lock(&s->mutex);
-    for (i = 0; i < CURL_NUM_STATES; i++) {
-        if (s->states[i].in_use) {
-            curl_clean_state(&s->states[i]);
+    WITH_QEMU_LOCK_GUARD(&s->mutex) {
+        for (i = 0; i < CURL_NUM_STATES; i++) {
+            if (s->states[i].in_use) {
+                curl_clean_state(&s->states[i]);
+            }
+            if (s->states[i].curl) {
+                curl_easy_cleanup(s->states[i].curl);
+                s->states[i].curl = NULL;
+            }
+            g_free(s->states[i].orig_buf);
+            s->states[i].orig_buf = NULL;
         }
-        if (s->states[i].curl) {
-            curl_easy_cleanup(s->states[i].curl);
-            s->states[i].curl = NULL;
+        if (s->multi) {
+            curl_multi_cleanup(s->multi);
+            s->multi = NULL;
         }
-        g_free(s->states[i].orig_buf);
-        s->states[i].orig_buf = NULL;
     }
-    if (s->multi) {
-        curl_multi_cleanup(s->multi);
-        s->multi = NULL;
-    }
-    qemu_mutex_unlock(&s->mutex);
 
     timer_del(&s->timer);
 }
@@ -573,10 +572,8 @@ static void curl_attach_aio_context(BlockDriverState *bs,
     s->multi = curl_multi_init();
     s->aio_context = new_context;
     curl_multi_setopt(s->multi, CURLMOPT_SOCKETFUNCTION, curl_sock_cb);
-#ifdef NEED_CURL_TIMER_CALLBACK
     curl_multi_setopt(s->multi, CURLMOPT_TIMERDATA, s);
     curl_multi_setopt(s->multi, CURLMOPT_TIMERFUNCTION, curl_timer_cb);
-#endif
 }
 
 static QemuOptsList runtime_opts = {
@@ -644,7 +641,6 @@ static int curl_open(BlockDriverState *bs, QDict *options, int flags,
     BDRVCURLState *s = bs->opaque;
     CURLState *state = NULL;
     QemuOpts *opts;
-    Error *local_err = NULL;
     const char *file;
     const char *cookie;
     const char *cookie_secret;
@@ -670,9 +666,7 @@ static int curl_open(BlockDriverState *bs, QDict *options, int flags,
 
     qemu_mutex_init(&s->mutex);
     opts = qemu_opts_create(&runtime_opts, NULL, 0, &error_abort);
-    qemu_opts_absorb_qdict(opts, options, &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
+    if (!qemu_opts_absorb_qdict(opts, options, errp)) {
         goto out_noclean;
     }
 

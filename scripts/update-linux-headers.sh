@@ -41,6 +41,7 @@ cp_portable() {
                                      -e 'pvrdma_verbs' \
                                      -e 'drm.h' \
                                      -e 'limits' \
+                                     -e 'linux/const' \
                                      -e 'linux/kernel' \
                                      -e 'linux/sysinfo' \
                                      -e 'asm-generic/kvm_para' \
@@ -95,7 +96,7 @@ for arch in $ARCHLIST; do
 
     rm -rf "$output/linux-headers/asm-$arch"
     mkdir -p "$output/linux-headers/asm-$arch"
-    for header in kvm.h unistd.h bitsperlong.h; do
+    for header in kvm.h unistd.h bitsperlong.h mman.h; do
         cp "$tmpdir/include/asm/$header" "$output/linux-headers/asm-$arch"
     done
 
@@ -122,6 +123,9 @@ for arch in $ARCHLIST; do
         cp "$tmpdir/include/asm/unistd-oabi.h" "$output/linux-headers/asm-arm/"
         cp "$tmpdir/include/asm/unistd-common.h" "$output/linux-headers/asm-arm/"
     fi
+    if [ $arch = arm64 ]; then
+        cp "$tmpdir/include/asm/sve_context.h" "$output/linux-headers/asm-arm64/"
+    fi
     if [ $arch = x86 ]; then
         cp "$tmpdir/include/asm/unistd_32.h" "$output/linux-headers/asm-x86/"
         cp "$tmpdir/include/asm/unistd_x32.h" "$output/linux-headers/asm-x86/"
@@ -138,14 +142,14 @@ done
 
 rm -rf "$output/linux-headers/linux"
 mkdir -p "$output/linux-headers/linux"
-for header in kvm.h vfio.h vfio_ccw.h vhost.h \
-              psci.h psp-sev.h userfaultfd.h; do
+for header in kvm.h vfio.h vfio_ccw.h vfio_zdev.h vhost.h \
+              psci.h psp-sev.h userfaultfd.h mman.h; do
     cp "$tmpdir/include/linux/$header" "$output/linux-headers/linux"
 done
 
 rm -rf "$output/linux-headers/asm-generic"
 mkdir -p "$output/linux-headers/asm-generic"
-for header in unistd.h bitsperlong.h; do
+for header in unistd.h bitsperlong.h mman-common.h mman.h hugetlb_encode.h; do
     cp "$tmpdir/include/asm-generic/$header" "$output/linux-headers/asm-generic"
 done
 
@@ -183,10 +187,13 @@ rm -rf "$output/include/standard-headers/linux"
 mkdir -p "$output/include/standard-headers/linux"
 for i in "$tmpdir"/include/linux/*virtio*.h \
          "$tmpdir/include/linux/qemu_fw_cfg.h" \
+         "$tmpdir/include/linux/fuse.h" \
          "$tmpdir/include/linux/input.h" \
          "$tmpdir/include/linux/input-event-codes.h" \
          "$tmpdir/include/linux/pci_regs.h" \
-         "$tmpdir/include/linux/ethtool.h" "$tmpdir/include/linux/kernel.h" \
+         "$tmpdir/include/linux/ethtool.h" \
+         "$tmpdir/include/linux/const.h" \
+         "$tmpdir/include/linux/kernel.h" \
          "$tmpdir/include/linux/vhost_types.h" \
          "$tmpdir/include/linux/sysinfo.h"; do
     cp_portable "$i" "$output/include/standard-headers/linux"

@@ -7,7 +7,7 @@
 #include "slirp.h"
 
 void ndp_table_add(Slirp *slirp, struct in6_addr ip_addr,
-                    uint8_t ethaddr[ETH_ALEN])
+                   uint8_t ethaddr[ETH_ALEN])
 {
     char addrstr[INET6_ADDRSTRLEN];
     NdpTable *ndp_table = &slirp->ndp_table;
@@ -17,9 +17,8 @@ void ndp_table_add(Slirp *slirp, struct in6_addr ip_addr,
 
     DEBUG_CALL("ndp_table_add");
     DEBUG_ARG("ip = %s", addrstr);
-    DEBUG_ARG("hw addr = %02x:%02x:%02x:%02x:%02x:%02x",
-              ethaddr[0], ethaddr[1], ethaddr[2],
-              ethaddr[3], ethaddr[4], ethaddr[5]);
+    DEBUG_ARG("hw addr = %02x:%02x:%02x:%02x:%02x:%02x", ethaddr[0], ethaddr[1],
+              ethaddr[2], ethaddr[3], ethaddr[4], ethaddr[5]);
 
     if (IN6_IS_ADDR_MULTICAST(&ip_addr) || in6_zero(&ip_addr)) {
         /* Do not register multicast or unspecified addresses */
@@ -40,8 +39,8 @@ void ndp_table_add(Slirp *slirp, struct in6_addr ip_addr,
     /* No entry found, create a new one */
     DEBUG_CALL(" create new entry");
     ndp_table->table[ndp_table->next_victim].ip_addr = ip_addr;
-    memcpy(ndp_table->table[ndp_table->next_victim].eth_addr,
-            ethaddr, ETH_ALEN);
+    memcpy(ndp_table->table[ndp_table->next_victim].eth_addr, ethaddr,
+           ETH_ALEN);
     ndp_table->next_victim = (ndp_table->next_victim + 1) % NDP_TABLE_SIZE;
 }
 
@@ -61,7 +60,8 @@ bool ndp_table_search(Slirp *slirp, struct in6_addr ip_addr,
 
     /* Multicast address: fec0::abcd:efgh/8 -> 33:33:ab:cd:ef:gh */
     if (IN6_IS_ADDR_MULTICAST(&ip_addr)) {
-        out_ethaddr[0] = 0x33; out_ethaddr[1] = 0x33;
+        out_ethaddr[0] = 0x33;
+        out_ethaddr[1] = 0x33;
         out_ethaddr[2] = ip_addr.s6_addr[12];
         out_ethaddr[3] = ip_addr.s6_addr[13];
         out_ethaddr[4] = ip_addr.s6_addr[14];
@@ -74,7 +74,7 @@ bool ndp_table_search(Slirp *slirp, struct in6_addr ip_addr,
 
     for (i = 0; i < NDP_TABLE_SIZE; i++) {
         if (in6_equal(&ndp_table->table[i].ip_addr, &ip_addr)) {
-            memcpy(out_ethaddr, ndp_table->table[i].eth_addr,  ETH_ALEN);
+            memcpy(out_ethaddr, ndp_table->table[i].eth_addr, ETH_ALEN);
             DEBUG_ARG("found hw addr = %02x:%02x:%02x:%02x:%02x:%02x",
                       out_ethaddr[0], out_ethaddr[1], out_ethaddr[2],
                       out_ethaddr[3], out_ethaddr[4], out_ethaddr[5]);

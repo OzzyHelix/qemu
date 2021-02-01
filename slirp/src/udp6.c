@@ -85,7 +85,7 @@ void udp6_input(struct mbuf *m)
     }
 
     so = solookup(&slirp->udp_last_so, &slirp->udb,
-                  (struct sockaddr_storage *) &lhost, NULL);
+                  (struct sockaddr_storage *)&lhost, NULL);
 
     if (so == NULL) {
         /* If there's no socket for this packet, create one. */
@@ -122,7 +122,7 @@ void udp6_input(struct mbuf *m)
         goto bad;
     }
 
-    m_free(so->so_m);   /* used for ICMP if error on sorecvfrom */
+    m_free(so->so_m); /* used for ICMP if error on sorecvfrom */
 
     /* restore the orig mbuf packet */
     m->m_len += iphlen;
@@ -135,8 +135,8 @@ bad:
     m_free(m);
 }
 
-int udp6_output(struct socket *so, struct mbuf *m,
-        struct sockaddr_in6 *saddr, struct sockaddr_in6 *daddr)
+int udp6_output(struct socket *so, struct mbuf *m, struct sockaddr_in6 *saddr,
+                struct sockaddr_in6 *daddr)
 {
     struct ip6 *ip;
     struct udphdr *uh;

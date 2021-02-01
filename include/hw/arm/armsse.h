@@ -37,9 +37,10 @@
  *  per-CPU identity and control register blocks
  *
  * QEMU interface:
+ *  + Clock input "MAINCLK": clock for CPUs and most peripherals
+ *  + Clock input "S32KCLK": slow 32KHz clock used for a few peripherals
  *  + QOM property "memory" is a MemoryRegion containing the devices provided
  *    by the board model.
- *  + QOM property "MAINCLK" is the frequency of the main system clock
  *  + QOM property "EXP_NUMIRQ" sets the number of expansion interrupts.
  *    (In hardware, the SSE-200 permits the number of expansion interrupts
  *    for the two CPUs to be configured separately, but we restrict it to
@@ -50,6 +51,11 @@
  *    address of each SRAM bank (and thus the total amount of internal SRAM)
  *  + QOM property "init-svtor" sets the initial value of the CPU SVTOR register
  *    (where it expects to load the PC and SP from the vector table on reset)
+ *  + QOM properties "CPU0_FPU", "CPU0_DSP", "CPU1_FPU" and "CPU1_DSP" which
+ *    set whether the CPUs have the FPU and DSP features present. The default
+ *    (matching the hardware) is that for CPU0 in an IoTKit and CPU1 in an
+ *    SSE-200 both are present; CPU0 in an SSE-200 has neither.
+ *    Since the IoTKit has only one CPU, it does not have the CPU1_* properties.
  *  + Named GPIO inputs "EXP_IRQ" 0..n are the expansion interrupts for CPU 0,
  *    which are wired to its NVIC lines 32 .. n+32
  *  + Named GPIO inputs "EXP_CPU1_IRQ" 0..n are the expansion interrupts for
@@ -98,11 +104,14 @@
 #include "hw/misc/armsse-mhu.h"
 #include "hw/misc/unimp.h"
 #include "hw/or-irq.h"
+#include "hw/clock.h"
 #include "hw/core/split-irq.h"
 #include "hw/cpu/cluster.h"
+#include "qom/object.h"
 
-#define TYPE_ARMSSE "arm-sse"
-#define ARMSSE(obj) OBJECT_CHECK(ARMSSE, (obj), TYPE_ARMSSE)
+#define TYPE_ARM_SSE "arm-sse"
+OBJECT_DECLARE_TYPE(ARMSSE, ARMSSEClass,
+                    ARM_SSE)
 
 /*
  * These type names are for specific IoTKit subsystems; other than
@@ -135,7 +144,7 @@
 #define RAM3_PPU 6
 #define NUM_PPUS 7
 
-typedef struct ARMSSE {
+struct ARMSSE {
     /*< private >*/
     SysBusDevice parent_obj;
 
@@ -146,9 +155,9 @@ typedef struct ARMSSE {
     TZPPC apb_ppc0;
     TZPPC apb_ppc1;
     TZMPC mpc[IOTS_NUM_MPC];
-    CMSDKAPBTIMER timer0;
-    CMSDKAPBTIMER timer1;
-    CMSDKAPBTIMER s32ktimer;
+    CMSDKAPBTimer timer0;
+    CMSDKAPBTimer timer1;
+    CMSDKAPBTimer s32ktimer;
     qemu_or_irq ppc_irq_orgate;
     SplitIRQ sec_resp_splitter;
     SplitIRQ ppc_irq_splitter[NUM_PPCS];
@@ -202,24 +211,24 @@ typedef struct ARMSSE {
 
     uint32_t nsccfg;
 
+    Clock *mainclk;
+    Clock *s32kclk;
+
     /* Properties */
     MemoryRegion *board_memory;
     uint32_t exp_numirq;
-    uint32_t mainclk_frq;
     uint32_t sram_addr_width;
     uint32_t init_svtor;
-} ARMSSE;
+    bool cpu_fpu[SSE_MAX_CPUS];
+    bool cpu_dsp[SSE_MAX_CPUS];
+};
 
 typedef struct ARMSSEInfo ARMSSEInfo;
 
-typedef struct ARMSSEClass {
-    DeviceClass parent_class;
+struct ARMSSEClass {
+    SysBusDeviceClass parent_class;
     const ARMSSEInfo *info;
-} ARMSSEClass;
+};
 
-#define ARMSSE_CLASS(klass) \
-    OBJECT_CLASS_CHECK(ARMSSEClass, (klass), TYPE_ARMSSE)
-#define ARMSSE_GET_CLASS(obj) \
-    OBJECT_GET_CLASS(ARMSSEClass, (obj), TYPE_ARMSSE)
 
 #endif

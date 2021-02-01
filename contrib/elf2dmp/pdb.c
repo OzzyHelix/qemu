@@ -18,9 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <inttypes.h>
-
 #include "qemu/osdep.h"
+
 #include "pdb.h"
 #include "err.h"
 
@@ -286,6 +285,7 @@ int pdb_init_from_file(const char *name, struct pdb_reader *reader)
     reader->gmf = g_mapped_file_new(name, TRUE, &gerr);
     if (gerr) {
         eprintf("Failed to map PDB file \'%s\'\n", name);
+        g_error_free(gerr);
         return 1;
     }
 

@@ -38,7 +38,7 @@
  * Macros for type conversion
  * mtod(m,t) -	convert mbuf pointer to data pointer of correct type
  */
-#define mtod(m,t)	((t)(m)->m_data)
+#define mtod(m, t) ((t)(m)->m_data)
 
 /* XXX About mbufs for slirp:
  * Only one mbuf is ever used in a chain, for each "cell" of data.
@@ -64,10 +64,9 @@
 /*
  * How much room is in the mbuf, from m_data to the end of the mbuf
  */
-#define M_ROOM(m) ((m->m_flags & M_EXT)? \
-			(((m)->m_ext + (m)->m_size) - (m)->m_data) \
-		   : \
-			(((m)->m_dat + (m)->m_size) - (m)->m_data))
+#define M_ROOM(m)                                                        \
+    ((m->m_flags & M_EXT) ? (((m)->m_ext + (m)->m_size) - (m)->m_data) : \
+                            (((m)->m_dat + (m)->m_size) - (m)->m_data))
 
 /*
  * How much free room there is
@@ -75,26 +74,26 @@
 #define M_FREEROOM(m) (M_ROOM(m) - (m)->m_len)
 
 struct mbuf {
-	/* XXX should union some of these! */
-	/* header at beginning of each mbuf: */
-	struct	mbuf *m_next;		/* Linked list of mbufs */
-	struct	mbuf *m_prev;
-	struct	mbuf *m_nextpkt;	/* Next packet in queue/record */
-	struct	mbuf *m_prevpkt;	/* Flags aren't used in the output queue */
-	int	m_flags;		/* Misc flags */
+    /* XXX should union some of these! */
+    /* header at beginning of each mbuf: */
+    struct mbuf *m_next; /* Linked list of mbufs */
+    struct mbuf *m_prev;
+    struct mbuf *m_nextpkt; /* Next packet in queue/record */
+    struct mbuf *m_prevpkt; /* Flags aren't used in the output queue */
+    int m_flags; /* Misc flags */
 
-	int	m_size;			/* Size of mbuf, from m_dat or m_ext */
-	struct	socket *m_so;
+    int m_size; /* Size of mbuf, from m_dat or m_ext */
+    struct socket *m_so;
 
-	char *m_data;			/* Current location of data */
-	int	m_len;			/* Amount of data in this mbuf, from m_data */
+    char *m_data; /* Current location of data */
+    int m_len; /* Amount of data in this mbuf, from m_data */
 
-	Slirp *slirp;
-	bool	resolution_requested;
-	uint64_t expiration_date;
-	char   *m_ext;
-	/* start of dynamic buffer area, must be last element */
-	char    m_dat[];
+    Slirp *slirp;
+    bool resolution_requested;
+    uint64_t expiration_date;
+    char *m_ext;
+    /* start of dynamic buffer area, must be last element */
+    char m_dat[];
 };
 
 #define ifq_prev m_prev
@@ -103,21 +102,22 @@ struct mbuf {
 #define ifs_next m_nextpkt
 #define ifq_so m_so
 
-#define M_EXT			0x01	/* m_ext points to more (malloced) data */
-#define M_FREELIST		0x02	/* mbuf is on free list */
-#define M_USEDLIST		0x04	/* XXX mbuf is on used list (for dtom()) */
-#define M_DOFREE		0x08	/* when m_free is called on the mbuf, free()
-					 * it rather than putting it on the free list */
+#define M_EXT 0x01 /* m_ext points to more (malloced) data */
+#define M_FREELIST 0x02 /* mbuf is on free list */
+#define M_USEDLIST 0x04 /* XXX mbuf is on used list (for dtom()) */
+#define M_DOFREE                                      \
+    0x08 /* when m_free is called on the mbuf, free() \
+          * it rather than putting it on the free list */
 
 void m_init(Slirp *);
 void m_cleanup(Slirp *slirp);
-struct mbuf * m_get(Slirp *);
+struct mbuf *m_get(Slirp *);
 void m_free(struct mbuf *);
 void m_cat(register struct mbuf *, register struct mbuf *);
 void m_inc(struct mbuf *, int);
 void m_adj(struct mbuf *, int);
 int m_copy(struct mbuf *, struct mbuf *, int, int);
-struct mbuf * dtom(Slirp *, void *);
+struct mbuf *dtom(Slirp *, void *);
 
 static inline void ifs_init(struct mbuf *ifm)
 {

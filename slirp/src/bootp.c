@@ -27,7 +27,7 @@
 #if defined(_WIN32)
 /* Windows ntohl() returns an u_long value.
  * Add a type cast to match the format strings. */
-# define ntohl(n) ((uint32_t)ntohl(n))
+#define ntohl(n) ((uint32_t)ntohl(n))
 #endif
 
 /* XXX: only DHCP is supported */
@@ -44,13 +44,13 @@ static BOOTPClient *get_new_addr(Slirp *slirp, struct in_addr *paddr,
     BOOTPClient *bc;
     int i;
 
-    for(i = 0; i < NB_BOOTP_CLIENTS; i++) {
+    for (i = 0; i < NB_BOOTP_CLIENTS; i++) {
         bc = &slirp->bootp_clients[i];
         if (!bc->allocated || !memcmp(macaddr, bc->macaddr, 6))
             goto found;
     }
     return NULL;
- found:
+found:
     bc = &slirp->bootp_clients[i];
     bc->allocated = 1;
     paddr->s_addr = slirp->vdhcp_startaddr.s_addr + htonl(i);
@@ -64,8 +64,7 @@ static BOOTPClient *request_addr(Slirp *slirp, const struct in_addr *paddr,
     uint32_t dhcp_addr = ntohl(slirp->vdhcp_startaddr.s_addr);
     BOOTPClient *bc;
 
-    if (req_addr >= dhcp_addr &&
-        req_addr < (dhcp_addr + NB_BOOTP_CLIENTS)) {
+    if (req_addr >= dhcp_addr && req_addr < (dhcp_addr + NB_BOOTP_CLIENTS)) {
         bc = &slirp->bootp_clients[req_addr - dhcp_addr];
         if (!bc->allocated || !memcmp(macaddr, bc->macaddr, 6)) {
             bc->allocated = 1;
@@ -81,12 +80,12 @@ static BOOTPClient *find_addr(Slirp *slirp, struct in_addr *paddr,
     BOOTPClient *bc;
     int i;
 
-    for(i = 0; i < NB_BOOTP_CLIENTS; i++) {
+    for (i = 0; i < NB_BOOTP_CLIENTS; i++) {
         if (!memcmp(macaddr, slirp->bootp_clients[i].macaddr, 6))
             goto found;
     }
     return NULL;
- found:
+found:
     bc = &slirp->bootp_clients[i];
     bc->allocated = 1;
     paddr->s_addr = slirp->vdhcp_startaddr.s_addr + htonl(i);
@@ -123,7 +122,7 @@ static void dhcp_decode(const struct bootp_t *bp, int *pmsg_type,
             }
             DPRINTF("dhcp: tag=%d len=%d\n", tag, len);
 
-            switch(tag) {
+            switch (tag) {
             case RFC2132_MSG_TYPE:
                 if (len >= 1)
                     *pmsg_type = p[0];
@@ -169,8 +168,7 @@ static void bootp_reply(Slirp *slirp, const struct bootp_t *bp)
     if (dhcp_msg_type == 0)
         dhcp_msg_type = DHCPREQUEST; /* Force reply for old BOOTP clients */
 
-    if (dhcp_msg_type != DHCPDISCOVER &&
-        dhcp_msg_type != DHCPREQUEST)
+    if (dhcp_msg_type != DHCPDISCOVER && dhcp_msg_type != DHCPREQUEST)
         return;
 
     /* Get client's hardware address from bootp request */
@@ -193,7 +191,7 @@ static void bootp_reply(Slirp *slirp, const struct bootp_t *bp)
             }
         }
         if (!bc) {
-         new_addr:
+        new_addr:
             bc = get_new_addr(slirp, &daddr.sin_addr, client_ethaddr);
             if (!bc) {
                 DPRINTF("no address left\n");
@@ -256,9 +254,10 @@ static void bootp_reply(Slirp *slirp, const struct bootp_t *bp)
             *q++ = DHCPACK;
         }
 
-        if (slirp->bootp_filename)
-            snprintf((char *)rbp->bp_file, sizeof(rbp->bp_file), "%s",
-                     slirp->bootp_filename);
+        if (slirp->bootp_filename) {
+            g_assert(strlen(slirp->bootp_filename) < sizeof(rbp->bp_file));
+            strcpy(rbp->bp_file, slirp->bootp_filename);
+        }
 
         *q++ = RFC2132_SRV_ID;
         *q++ = 4;
@@ -292,7 +291,7 @@ static void bootp_reply(Slirp *slirp, const struct bootp_t *bp)
             val = strlen(slirp->client_hostname);
             if (q + val + 2 >= end) {
                 g_warning("DHCP packet size exceeded, "
-                    "omitting host name option.");
+                          "omitting host name option.");
             } else {
                 *q++ = RFC1533_HOSTNAME;
                 *q++ = val;
@@ -305,7 +304,7 @@ static void bootp_reply(Slirp *slirp, const struct bootp_t *bp)
             val = strlen(slirp->vdomainname);
             if (q + val + 2 >= end) {
                 g_warning("DHCP packet size exceeded, "
-                    "omitting domain name option.");
+                          "omitting domain name option.");
             } else {
                 *q++ = RFC1533_DOMAINNAME;
                 *q++ = val;
@@ -318,7 +317,7 @@ static void bootp_reply(Slirp *slirp, const struct bootp_t *bp)
             val = strlen(slirp->tftp_server_name);
             if (q + val + 2 >= end) {
                 g_warning("DHCP packet size exceeded, "
-                    "omitting tftp-server-name option.");
+                          "omitting tftp-server-name option.");
             } else {
                 *q++ = RFC2132_TFTP_SERVER_NAME;
                 *q++ = val;
@@ -331,7 +330,7 @@ static void bootp_reply(Slirp *slirp, const struct bootp_t *bp)
             val = slirp->vdnssearch_len;
             if (q + val >= end) {
                 g_warning("DHCP packet size exceeded, "
-                    "omitting domain-search option.");
+                          "omitting domain-search option.");
             } else {
                 memcpy(q, slirp->vdnssearch, val);
                 q += val;
@@ -356,8 +355,7 @@ static void bootp_reply(Slirp *slirp, const struct bootp_t *bp)
 
     daddr.sin_addr.s_addr = 0xffffffffu;
 
-    m->m_len = sizeof(struct bootp_t) -
-        sizeof(struct ip) - sizeof(struct udphdr);
+    m->m_len = sizeof(struct bootp_t) - sizeof(struct ip) - sizeof(struct udphdr);
     udp_output(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
 }
 

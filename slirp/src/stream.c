@@ -64,7 +64,7 @@ uint16_t slirp_istream_read_u16(SlirpIStream *f)
 
 bool slirp_ostream_write_u16(SlirpOStream *f, uint16_t b)
 {
-    b =  GUINT16_TO_BE(b);
+    b = GUINT16_TO_BE(b);
     return slirp_ostream_write(f, &b, sizeof(b));
 }
 

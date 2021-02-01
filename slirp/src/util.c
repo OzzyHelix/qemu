@@ -111,8 +111,8 @@ static int socket_error(void)
     case WSAENOTEMPTY:
         return ENOTEMPTY;
     case WSAEWOULDBLOCK:
-         /* not using EWOULDBLOCK as we don't want code to have
-          * to check both EWOULDBLOCK and EAGAIN */
+        /* not using EWOULDBLOCK as we don't want code to have
+         * to check both EWOULDBLOCK and EAGAIN */
         return EAGAIN;
     case WSAEINPROGRESS:
         return EINPROGRESS;
@@ -256,8 +256,8 @@ int slirp_shutdown_wrap(int sockfd, int how)
 }
 
 #undef getsockopt
-int slirp_getsockopt_wrap(int sockfd, int level, int optname,
-                          void *optval, int *optlen)
+int slirp_getsockopt_wrap(int sockfd, int level, int optname, void *optval,
+                          int *optlen)
 {
     int ret;
     ret = getsockopt(sockfd, level, optname, optval, optlen);
@@ -280,8 +280,7 @@ int slirp_setsockopt_wrap(int sockfd, int level, int optname,
 }
 
 #undef getpeername
-int slirp_getpeername_wrap(int sockfd, struct sockaddr *addr,
-                           int *addrlen)
+int slirp_getpeername_wrap(int sockfd, struct sockaddr *addr, int *addrlen)
 {
     int ret;
     ret = getpeername(sockfd, addr, addrlen);
@@ -292,8 +291,7 @@ int slirp_getpeername_wrap(int sockfd, struct sockaddr *addr,
 }
 
 #undef getsockname
-int slirp_getsockname_wrap(int sockfd, struct sockaddr *addr,
-                           int *addrlen)
+int slirp_getsockname_wrap(int sockfd, struct sockaddr *addr, int *addrlen)
 {
     int ret;
     ret = getsockname(sockfd, addr, addrlen);
@@ -316,7 +314,7 @@ ssize_t slirp_send_wrap(int sockfd, const void *buf, size_t len, int flags)
 
 #undef sendto
 ssize_t slirp_sendto_wrap(int sockfd, const void *buf, size_t len, int flags,
-                     const struct sockaddr *addr, int addrlen)
+                          const struct sockaddr *addr, int addrlen)
 {
     int ret;
     ret = sendto(sockfd, buf, len, flags, addr, addrlen);
@@ -358,11 +356,73 @@ void slirp_pstrcpy(char *buf, int buf_size, const char *str)
     if (buf_size <= 0)
         return;
 
-    for(;;) {
+    for (;;) {
         c = *str++;
         if (c == 0 || q >= buf + buf_size - 1)
             break;
         *q++ = c;
     }
     *q = '\0';
+}
+
+static int slirp_vsnprintf(char *str, size_t size,
+                           const char *format, va_list args)
+{
+    int rv = g_vsnprintf(str, size, format, args);
+
+    if (rv < 0) {
+        g_error("g_vsnprintf() failed: %s", g_strerror(errno));
+    }
+
+    return rv;
+}
+
+/*
+ * A snprintf()-like function that:
+ * - returns the number of bytes written (excluding optional \0-ending)
+ * - dies on error
+ * - warn on truncation
+ */
+int slirp_fmt(char *str, size_t size, const char *format, ...)
+{
+    va_list args;
+    int rv;
+
+    va_start(args, format);
+    rv = slirp_vsnprintf(str, size, format, args);
+    va_end(args);
+
+    if (rv >= size) {
+        g_critical("slirp_fmt() truncation");
+    }
+
+    return MIN(rv, size);
+}
+
+/*
+ * A snprintf()-like function that:
+ * - always \0-end (unless size == 0)
+ * - returns the number of bytes actually written, including \0 ending
+ * - dies on error
+ * - warn on truncation
+ */
+int slirp_fmt0(char *str, size_t size, const char *format, ...)
+{
+    va_list args;
+    int rv;
+
+    va_start(args, format);
+    rv = slirp_vsnprintf(str, size, format, args);
+    va_end(args);
+
+    if (rv >= size) {
+        g_critical("slirp_fmt0() truncation");
+        if (size > 0)
+            str[size - 1] = '\0';
+        rv = size;
+    } else {
+        rv += 1; /* include \0 */
+    }
+
+    return rv;
 }

@@ -40,15 +40,16 @@ typedef struct compact_domain {
     size_t common_octets;
 } CompactDomain;
 
-static size_t
-domain_suffix_diffoff(const CompactDomain *a, const CompactDomain *b)
+static size_t domain_suffix_diffoff(const CompactDomain *a,
+                                    const CompactDomain *b)
 {
     size_t la = a->len, lb = b->len;
     uint8_t *da = a->labels + la, *db = b->labels + lb;
     size_t i, lm = (la < lb) ? la : lb;
 
     for (i = 0; i < lm; i++) {
-        da--; db--;
+        da--;
+        db--;
         if (*da != *db) {
             break;
         }
@@ -154,8 +155,8 @@ fail:
     cd->len = 0;
 }
 
-static void
-domain_mkxrefs(CompactDomain *doms, CompactDomain *last, size_t depth)
+static void domain_mkxrefs(CompactDomain *doms, CompactDomain *last,
+                           size_t depth)
 {
     CompactDomain *i = doms, *target = doms;
 
@@ -214,8 +215,7 @@ static size_t domain_compactify(CompactDomain *domains, size_t n)
         CompactDomain *rd = cd->refdom;
 
         if (rd != NULL) {
-            size_t moff = (rd->labels - start)
-                    + (rd->len - cd->common_octets);
+            size_t moff = (rd->labels - start) + (rd->len - cd->common_octets);
             if (moff < 0x3FFFu) {
                 cd->len -= cd->common_octets - 2;
                 cd->labels[cd->len - 1] = moff & 0xFFu;
@@ -238,13 +238,8 @@ int translate_dnssearch(Slirp *s, const char **names)
     size_t i, num_domains, memreq = 0;
     uint8_t *result = NULL, *outptr;
     CompactDomain *domains = NULL;
-    const char **nameptr = names;
 
-    while (*nameptr != NULL) {
-        nameptr++;
-    }
-
-    num_domains = nameptr - names;
+    num_domains = g_strv_length((GStrv)(void *)names);
     if (num_domains == 0) {
         return -2;
     }

@@ -27,7 +27,8 @@
 
 #include <string.h>
 
-void arp_table_add(Slirp *slirp, uint32_t ip_addr, uint8_t ethaddr[ETH_ALEN])
+void arp_table_add(Slirp *slirp, uint32_t ip_addr,
+                   const uint8_t ethaddr[ETH_ALEN])
 {
     const uint32_t broadcast_addr =
         ~slirp->vnetwork_mask.s_addr | slirp->vnetwork_addr.s_addr;
@@ -35,10 +36,9 @@ void arp_table_add(Slirp *slirp, uint32_t ip_addr, uint8_t ethaddr[ETH_ALEN])
     int i;
 
     DEBUG_CALL("arp_table_add");
-    DEBUG_ARG("ip = %s", inet_ntoa((struct in_addr){.s_addr = ip_addr}));
-    DEBUG_ARG("hw addr = %02x:%02x:%02x:%02x:%02x:%02x",
-              ethaddr[0], ethaddr[1], ethaddr[2],
-              ethaddr[3], ethaddr[4], ethaddr[5]);
+    DEBUG_ARG("ip = %s", inet_ntoa((struct in_addr){ .s_addr = ip_addr }));
+    DEBUG_ARG("hw addr = %02x:%02x:%02x:%02x:%02x:%02x", ethaddr[0], ethaddr[1],
+              ethaddr[2], ethaddr[3], ethaddr[4], ethaddr[5]);
 
     if (ip_addr == 0 || ip_addr == 0xffffffff || ip_addr == broadcast_addr) {
         /* Do not register broadcast addresses */
@@ -56,7 +56,7 @@ void arp_table_add(Slirp *slirp, uint32_t ip_addr, uint8_t ethaddr[ETH_ALEN])
 
     /* No entry found, create a new one */
     arptbl->table[arptbl->next_victim].ar_sip = ip_addr;
-    memcpy(arptbl->table[arptbl->next_victim].ar_sha,  ethaddr, ETH_ALEN);
+    memcpy(arptbl->table[arptbl->next_victim].ar_sha, ethaddr, ETH_ALEN);
     arptbl->next_victim = (arptbl->next_victim + 1) % ARP_TABLE_SIZE;
 }
 
@@ -69,10 +69,10 @@ bool arp_table_search(Slirp *slirp, uint32_t ip_addr,
     int i;
 
     DEBUG_CALL("arp_table_search");
-    DEBUG_ARG("ip = %s", inet_ntoa((struct in_addr){.s_addr = ip_addr}));
+    DEBUG_ARG("ip = %s", inet_ntoa((struct in_addr){ .s_addr = ip_addr }));
 
     /* If broadcast address */
-    if (ip_addr == 0xffffffff || ip_addr == broadcast_addr) {
+    if (ip_addr == 0 || ip_addr == 0xffffffff || ip_addr == broadcast_addr) {
         /* return Ethernet broadcast address */
         memset(out_ethaddr, 0xff, ETH_ALEN);
         return 1;
@@ -80,7 +80,7 @@ bool arp_table_search(Slirp *slirp, uint32_t ip_addr,
 
     for (i = 0; i < ARP_TABLE_SIZE; i++) {
         if (arptbl->table[i].ar_sip == ip_addr) {
-            memcpy(out_ethaddr, arptbl->table[i].ar_sha,  ETH_ALEN);
+            memcpy(out_ethaddr, arptbl->table[i].ar_sha, ETH_ALEN);
             DEBUG_ARG("found hw addr = %02x:%02x:%02x:%02x:%02x:%02x",
                       out_ethaddr[0], out_ethaddr[1], out_ethaddr[2],
                       out_ethaddr[3], out_ethaddr[4], out_ethaddr[5]);

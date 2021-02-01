@@ -30,7 +30,8 @@
 #include "qemu-common.h"
 #include "tcg/tcg.h"           /* MAX_OPC_PARAM_IARGS */
 #include "exec/cpu_ldst.h"
-#include "tcg-op.h"
+#include "tcg/tcg-op.h"
+#include "qemu/compiler.h"
 
 /* Marker for missing code. */
 #define TODO() \
@@ -127,6 +128,14 @@ static void tci_write_reg8(tcg_target_ulong *regs, TCGReg index, uint8_t value)
     tci_write_reg(regs, index, value);
 }
 
+#if TCG_TARGET_REG_BITS == 64
+static void
+tci_write_reg16(tcg_target_ulong *regs, TCGReg index, uint16_t value)
+{
+    tci_write_reg(regs, index, value);
+}
+#endif
+
 static void
 tci_write_reg32(tcg_target_ulong *regs, TCGReg index, uint32_t value)
 {
@@ -157,34 +166,34 @@ static uint64_t tci_uint64(uint32_t high, uint32_t low)
 #endif
 
 /* Read constant (native size) from bytecode. */
-static tcg_target_ulong tci_read_i(uint8_t **tb_ptr)
+static tcg_target_ulong tci_read_i(const uint8_t **tb_ptr)
 {
-    tcg_target_ulong value = *(tcg_target_ulong *)(*tb_ptr);
+    tcg_target_ulong value = *(const tcg_target_ulong *)(*tb_ptr);
     *tb_ptr += sizeof(value);
     return value;
 }
 
 /* Read unsigned constant (32 bit) from bytecode. */
-static uint32_t tci_read_i32(uint8_t **tb_ptr)
+static uint32_t tci_read_i32(const uint8_t **tb_ptr)
 {
-    uint32_t value = *(uint32_t *)(*tb_ptr);
+    uint32_t value = *(const uint32_t *)(*tb_ptr);
     *tb_ptr += sizeof(value);
     return value;
 }
 
 /* Read signed constant (32 bit) from bytecode. */
-static int32_t tci_read_s32(uint8_t **tb_ptr)
+static int32_t tci_read_s32(const uint8_t **tb_ptr)
 {
-    int32_t value = *(int32_t *)(*tb_ptr);
+    int32_t value = *(const int32_t *)(*tb_ptr);
     *tb_ptr += sizeof(value);
     return value;
 }
 
 #if TCG_TARGET_REG_BITS == 64
 /* Read constant (64 bit) from bytecode. */
-static uint64_t tci_read_i64(uint8_t **tb_ptr)
+static uint64_t tci_read_i64(const uint8_t **tb_ptr)
 {
-    uint64_t value = *(uint64_t *)(*tb_ptr);
+    uint64_t value = *(const uint64_t *)(*tb_ptr);
     *tb_ptr += sizeof(value);
     return value;
 }
@@ -192,7 +201,7 @@ static uint64_t tci_read_i64(uint8_t **tb_ptr)
 
 /* Read indexed register (native size) from bytecode. */
 static tcg_target_ulong
-tci_read_r(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+tci_read_r(const tcg_target_ulong *regs, const uint8_t **tb_ptr)
 {
     tcg_target_ulong value = tci_read_reg(regs, **tb_ptr);
     *tb_ptr += 1;
@@ -200,7 +209,7 @@ tci_read_r(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 }
 
 /* Read indexed register (8 bit) from bytecode. */
-static uint8_t tci_read_r8(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static uint8_t tci_read_r8(const tcg_target_ulong *regs, const uint8_t **tb_ptr)
 {
     uint8_t value = tci_read_reg8(regs, **tb_ptr);
     *tb_ptr += 1;
@@ -209,7 +218,7 @@ static uint8_t tci_read_r8(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 
 #if TCG_TARGET_HAS_ext8s_i32 || TCG_TARGET_HAS_ext8s_i64
 /* Read indexed register (8 bit signed) from bytecode. */
-static int8_t tci_read_r8s(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static int8_t tci_read_r8s(const tcg_target_ulong *regs, const uint8_t **tb_ptr)
 {
     int8_t value = tci_read_reg8s(regs, **tb_ptr);
     *tb_ptr += 1;
@@ -218,7 +227,8 @@ static int8_t tci_read_r8s(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 #endif
 
 /* Read indexed register (16 bit) from bytecode. */
-static uint16_t tci_read_r16(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static uint16_t tci_read_r16(const tcg_target_ulong *regs,
+                             const uint8_t **tb_ptr)
 {
     uint16_t value = tci_read_reg16(regs, **tb_ptr);
     *tb_ptr += 1;
@@ -227,7 +237,8 @@ static uint16_t tci_read_r16(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 
 #if TCG_TARGET_HAS_ext16s_i32 || TCG_TARGET_HAS_ext16s_i64
 /* Read indexed register (16 bit signed) from bytecode. */
-static int16_t tci_read_r16s(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static int16_t tci_read_r16s(const tcg_target_ulong *regs,
+                             const uint8_t **tb_ptr)
 {
     int16_t value = tci_read_reg16s(regs, **tb_ptr);
     *tb_ptr += 1;
@@ -236,7 +247,8 @@ static int16_t tci_read_r16s(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 #endif
 
 /* Read indexed register (32 bit) from bytecode. */
-static uint32_t tci_read_r32(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static uint32_t tci_read_r32(const tcg_target_ulong *regs,
+                             const uint8_t **tb_ptr)
 {
     uint32_t value = tci_read_reg32(regs, **tb_ptr);
     *tb_ptr += 1;
@@ -245,14 +257,16 @@ static uint32_t tci_read_r32(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 
 #if TCG_TARGET_REG_BITS == 32
 /* Read two indexed registers (2 * 32 bit) from bytecode. */
-static uint64_t tci_read_r64(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static uint64_t tci_read_r64(const tcg_target_ulong *regs,
+                             const uint8_t **tb_ptr)
 {
     uint32_t low = tci_read_r32(regs, tb_ptr);
     return tci_uint64(tci_read_r32(regs, tb_ptr), low);
 }
 #elif TCG_TARGET_REG_BITS == 64
 /* Read indexed register (32 bit signed) from bytecode. */
-static int32_t tci_read_r32s(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static int32_t tci_read_r32s(const tcg_target_ulong *regs,
+                             const uint8_t **tb_ptr)
 {
     int32_t value = tci_read_reg32s(regs, **tb_ptr);
     *tb_ptr += 1;
@@ -260,7 +274,8 @@ static int32_t tci_read_r32s(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 }
 
 /* Read indexed register (64 bit) from bytecode. */
-static uint64_t tci_read_r64(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static uint64_t tci_read_r64(const tcg_target_ulong *regs,
+                             const uint8_t **tb_ptr)
 {
     uint64_t value = tci_read_reg64(regs, **tb_ptr);
     *tb_ptr += 1;
@@ -270,7 +285,7 @@ static uint64_t tci_read_r64(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 
 /* Read indexed register(s) with target address from bytecode. */
 static target_ulong
-tci_read_ulong(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+tci_read_ulong(const tcg_target_ulong *regs, const uint8_t **tb_ptr)
 {
     target_ulong taddr = tci_read_r(regs, tb_ptr);
 #if TARGET_LONG_BITS > TCG_TARGET_REG_BITS
@@ -281,7 +296,7 @@ tci_read_ulong(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 
 /* Read indexed register or constant (native size) from bytecode. */
 static tcg_target_ulong
-tci_read_ri(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+tci_read_ri(const tcg_target_ulong *regs, const uint8_t **tb_ptr)
 {
     tcg_target_ulong value;
     TCGReg r = **tb_ptr;
@@ -295,7 +310,8 @@ tci_read_ri(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 }
 
 /* Read indexed register or constant (32 bit) from bytecode. */
-static uint32_t tci_read_ri32(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static uint32_t tci_read_ri32(const tcg_target_ulong *regs,
+                              const uint8_t **tb_ptr)
 {
     uint32_t value;
     TCGReg r = **tb_ptr;
@@ -310,14 +326,16 @@ static uint32_t tci_read_ri32(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 
 #if TCG_TARGET_REG_BITS == 32
 /* Read two indexed registers or constants (2 * 32 bit) from bytecode. */
-static uint64_t tci_read_ri64(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static uint64_t tci_read_ri64(const tcg_target_ulong *regs,
+                              const uint8_t **tb_ptr)
 {
     uint32_t low = tci_read_ri32(regs, tb_ptr);
     return tci_uint64(tci_read_ri32(regs, tb_ptr), low);
 }
 #elif TCG_TARGET_REG_BITS == 64
 /* Read indexed register or constant (64 bit) from bytecode. */
-static uint64_t tci_read_ri64(const tcg_target_ulong *regs, uint8_t **tb_ptr)
+static uint64_t tci_read_ri64(const tcg_target_ulong *regs,
+                              const uint8_t **tb_ptr)
 {
     uint64_t value;
     TCGReg r = **tb_ptr;
@@ -331,7 +349,7 @@ static uint64_t tci_read_ri64(const tcg_target_ulong *regs, uint8_t **tb_ptr)
 }
 #endif
 
-static tcg_target_ulong tci_read_label(uint8_t **tb_ptr)
+static tcg_target_ulong tci_read_label(const uint8_t **tb_ptr)
 {
     tcg_target_ulong label = tci_read_i(tb_ptr);
     tci_assert(label != 0);
@@ -469,8 +487,15 @@ static bool tci_compare64(uint64_t u0, uint64_t u1, TCGCond condition)
 #endif
 
 /* Interpret pseudo code in tb. */
-uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
+/*
+ * Disable CFI checks.
+ * One possible operation in the pseudo code is a call to binary code.
+ * Therefore, disable CFI checks in the interpreter function
+ */
+uintptr_t QEMU_DISABLE_CFI tcg_qemu_tb_exec(CPUArchState *env,
+                                            const void *v_tb_ptr)
 {
+    const uint8_t *tb_ptr = v_tb_ptr;
     tcg_target_ulong regs[TCG_TARGET_NB_REGS];
     long tcg_temps[CPU_TEMP_BUF_NLONGS];
     uintptr_t sp_value = (uintptr_t)(tcg_temps + CPU_TEMP_BUF_NLONGS);
@@ -484,7 +509,7 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
         TCGOpcode opc = tb_ptr[0];
 #if defined(CONFIG_DEBUG_TCG) && !defined(NDEBUG)
         uint8_t op_size = tb_ptr[1];
-        uint8_t *old_code_ptr = tb_ptr;
+        const uint8_t *old_code_ptr = tb_ptr;
 #endif
         tcg_target_ulong t0;
         tcg_target_ulong t1;
@@ -570,7 +595,7 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
             t1 = tci_read_r32(regs, &tb_ptr);
             tci_write_reg32(regs, t0, t1);
             break;
-        case INDEX_op_movi_i32:
+        case INDEX_op_tci_movi_i32:
             t0 = *tb_ptr++;
             t1 = tci_read_i32(&tb_ptr);
             tci_write_reg32(regs, t0, t1);
@@ -585,6 +610,8 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
             tci_write_reg8(regs, t0, *(uint8_t *)(t1 + t2));
             break;
         case INDEX_op_ld8s_i32:
+            TODO();
+            break;
         case INDEX_op_ld16u_i32:
             TODO();
             break;
@@ -839,7 +866,7 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
             t1 = tci_read_r64(regs, &tb_ptr);
             tci_write_reg64(regs, t0, t1);
             break;
-        case INDEX_op_movi_i64:
+        case INDEX_op_tci_movi_i64:
             t0 = *tb_ptr++;
             t1 = tci_read_i64(&tb_ptr);
             tci_write_reg64(regs, t0, t1);
@@ -854,7 +881,14 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
             tci_write_reg8(regs, t0, *(uint8_t *)(t1 + t2));
             break;
         case INDEX_op_ld8s_i64:
+            TODO();
+            break;
         case INDEX_op_ld16u_i64:
+            t0 = *tb_ptr++;
+            t1 = tci_read_r(regs, &tb_ptr);
+            t2 = tci_read_s32(&tb_ptr);
+            tci_write_reg16(regs, t0, *(uint16_t *)(t1 + t2));
+            break;
         case INDEX_op_ld16s_i64:
             TODO();
             break;
@@ -1100,7 +1134,7 @@ uintptr_t tcg_qemu_tb_exec(CPUArchState *env, uint8_t *tb_ptr)
         case INDEX_op_goto_tb:
             /* Jump address is aligned */
             tb_ptr = QEMU_ALIGN_PTR_UP(tb_ptr, 4);
-            t0 = atomic_read((int32_t *)tb_ptr);
+            t0 = qatomic_read((int32_t *)tb_ptr);
             tb_ptr += sizeof(int32_t);
             tci_assert(tb_ptr == old_code_ptr + op_size);
             tb_ptr += (int32_t)t0;

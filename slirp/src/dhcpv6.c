@@ -42,15 +42,15 @@
 #include "dhcpv6.h"
 
 /* DHCPv6 message types */
-#define MSGTYPE_REPLY        7
+#define MSGTYPE_REPLY 7
 #define MSGTYPE_INFO_REQUEST 11
 
 /* DHCPv6 option types */
-#define OPTION_CLIENTID      1
-#define OPTION_IAADDR        5
-#define OPTION_ORO           6
-#define OPTION_DNS_SERVERS   23
-#define OPTION_BOOTFILE_URL  59
+#define OPTION_CLIENTID 1
+#define OPTION_IAADDR 5
+#define OPTION_ORO 6
+#define OPTION_DNS_SERVERS 23
+#define OPTION_BOOTFILE_URL 59
 
 struct requested_infos {
     uint8_t *client_id;
@@ -77,7 +77,8 @@ static int dhcpv6_parse_info_request(Slirp *slirp, uint8_t *odata, int olen,
         int len = odata[2] << 8 | odata[3];
 
         if (len + 4 > olen) {
-            slirp->cb->guest_error("Guest sent bad DHCPv6 packet!", slirp->opaque);
+            slirp->cb->guest_error("Guest sent bad DHCPv6 packet!",
+                                   slirp->opaque);
             return -E2BIG;
         }
 
@@ -93,7 +94,7 @@ static int dhcpv6_parse_info_request(Slirp *slirp, uint8_t *odata, int olen,
             ri->client_id = odata + 4;
             ri->client_id_len = len;
             break;
-        case OPTION_ORO:        /* Option request option */
+        case OPTION_ORO: /* Option request option */
             if (len & 1) {
                 return -EINVAL;
             }
@@ -114,8 +115,8 @@ static int dhcpv6_parse_info_request(Slirp *slirp, uint8_t *odata, int olen,
             }
             break;
         default:
-            DEBUG_MISC("dhcpv6 info req: Unsupported option %d, len=%d",
-                       option, len);
+            DEBUG_MISC("dhcpv6 info req: Unsupported option %d, len=%d", option,
+                       len);
         }
 
         odata += len + 4;
@@ -156,18 +157,18 @@ static void dhcpv6_info_request(Slirp *slirp, struct sockaddr_in6 *srcsas,
     *resp++ = (uint8_t)xid;
 
     if (ri.client_id) {
-        *resp++ = OPTION_CLIENTID >> 8;         /* option-code high byte */
-        *resp++ = OPTION_CLIENTID;              /* option-code low byte */
-        *resp++ = ri.client_id_len >> 8;        /* option-len high byte */
-        *resp++ = ri.client_id_len;             /* option-len low byte */
+        *resp++ = OPTION_CLIENTID >> 8; /* option-code high byte */
+        *resp++ = OPTION_CLIENTID; /* option-code low byte */
+        *resp++ = ri.client_id_len >> 8; /* option-len high byte */
+        *resp++ = ri.client_id_len; /* option-len low byte */
         memcpy(resp, ri.client_id, ri.client_id_len);
         resp += ri.client_id_len;
     }
     if (ri.want_dns) {
-        *resp++ = OPTION_DNS_SERVERS >> 8;      /* option-code high byte */
-        *resp++ = OPTION_DNS_SERVERS;           /* option-code low byte */
-        *resp++ = 0;                            /* option-len high byte */
-        *resp++ = 16;                           /* option-len low byte */
+        *resp++ = OPTION_DNS_SERVERS >> 8; /* option-code high byte */
+        *resp++ = OPTION_DNS_SERVERS; /* option-code low byte */
+        *resp++ = 0; /* option-len high byte */
+        *resp++ = 16; /* option-len low byte */
         memcpy(resp, &slirp->vnameserver_addr6, 16);
         resp += 16;
     }
@@ -175,18 +176,17 @@ static void dhcpv6_info_request(Slirp *slirp, struct sockaddr_in6 *srcsas,
         uint8_t *sa = slirp->vhost_addr6.s6_addr;
         int slen, smaxlen;
 
-        *resp++ = OPTION_BOOTFILE_URL >> 8;     /* option-code high byte */
-        *resp++ = OPTION_BOOTFILE_URL;          /* option-code low byte */
-        smaxlen = (uint8_t *)m->m_data + IF_MTU - (resp + 2);
-        slen = snprintf((char *)resp + 2, smaxlen,
-                        "tftp://[%02x%02x:%02x%02x:%02x%02x:%02x%02x:"
-                                "%02x%02x:%02x%02x:%02x%02x:%02x%02x]/%s",
-                        sa[0], sa[1], sa[2], sa[3], sa[4], sa[5], sa[6], sa[7],
-                        sa[8], sa[9], sa[10], sa[11], sa[12], sa[13], sa[14],
-                        sa[15], slirp->bootp_filename);
-        slen = MIN(slen, smaxlen);
-        *resp++ = slen >> 8;                    /* option-len high byte */
-        *resp++ = slen;                         /* option-len low byte */
+        *resp++ = OPTION_BOOTFILE_URL >> 8; /* option-code high byte */
+        *resp++ = OPTION_BOOTFILE_URL; /* option-code low byte */
+        smaxlen = (uint8_t *)m->m_data + slirp->if_mtu - (resp + 2);
+        slen = slirp_fmt((char *)resp + 2, smaxlen,
+                         "tftp://[%02x%02x:%02x%02x:%02x%02x:%02x%02x:"
+                         "%02x%02x:%02x%02x:%02x%02x:%02x%02x]/%s",
+                         sa[0], sa[1], sa[2], sa[3], sa[4], sa[5], sa[6], sa[7],
+                         sa[8], sa[9], sa[10], sa[11], sa[12], sa[13], sa[14],
+                         sa[15], slirp->bootp_filename);
+        *resp++ = slen >> 8; /* option-len high byte */
+        *resp++ = slen; /* option-len low byte */
         resp += slen;
     }
 

@@ -7,16 +7,17 @@
 #include "slirp.h"
 #include "ip6_icmp.h"
 
-#define NDP_Interval g_rand_int_range(slirp->grand, \
-        NDP_MinRtrAdvInterval, NDP_MaxRtrAdvInterval)
+#define NDP_Interval \
+    g_rand_int_range(slirp->grand, NDP_MinRtrAdvInterval, NDP_MaxRtrAdvInterval)
 
 static void ra_timer_handler(void *opaque)
 {
     Slirp *slirp = opaque;
 
     slirp->cb->timer_mod(slirp->ra_timer,
-        slirp->cb->clock_get_ns(slirp->opaque) / SCALE_MS + NDP_Interval,
-        slirp->opaque);
+                         slirp->cb->clock_get_ns(slirp->opaque) / SCALE_MS +
+                             NDP_Interval,
+                         slirp->opaque);
     ndp_send_ra(slirp);
 }
 
@@ -26,10 +27,12 @@ void icmp6_init(Slirp *slirp)
         return;
     }
 
-    slirp->ra_timer = slirp->cb->timer_new(ra_timer_handler, slirp, slirp->opaque);
+    slirp->ra_timer =
+        slirp->cb->timer_new(ra_timer_handler, slirp, slirp->opaque);
     slirp->cb->timer_mod(slirp->ra_timer,
-        slirp->cb->clock_get_ns(slirp->opaque) / SCALE_MS + NDP_Interval,
-        slirp->opaque);
+                         slirp->cb->clock_get_ns(slirp->opaque) / SCALE_MS +
+                             NDP_Interval,
+                         slirp->opaque);
 }
 
 void icmp6_cleanup(Slirp *slirp)
@@ -42,7 +45,7 @@ void icmp6_cleanup(Slirp *slirp)
 }
 
 static void icmp6_send_echoreply(struct mbuf *m, Slirp *slirp, struct ip6 *ip,
-        struct icmp6 *icmp)
+                                 struct icmp6 *icmp)
 {
     struct mbuf *t = m_get(slirp);
     t->m_len = sizeof(struct ip6) + ntohs(ip->ip_pl);
@@ -76,8 +79,7 @@ void icmp6_send_error(struct mbuf *m, uint8_t type, uint8_t code)
     DEBUG_CALL("icmp6_send_error");
     DEBUG_ARG("type = %d, code = %d", type, code);
 
-    if (IN6_IS_ADDR_MULTICAST(&ip->ip_src) ||
-            in6_zero(&ip->ip_src)) {
+    if (IN6_IS_ADDR_MULTICAST(&ip->ip_src) || in6_zero(&ip->ip_src)) {
         /* TODO icmp error? */
         return;
     }
@@ -92,8 +94,8 @@ void icmp6_send_error(struct mbuf *m, uint8_t type, uint8_t code)
     DEBUG_ARG("target = %s", addrstr);
 
     rip->ip_nh = IPPROTO_ICMPV6;
-    const int error_data_len = MIN(m->m_len,
-            IF_MTU - (sizeof(struct ip6) + ICMP6_ERROR_MINLEN));
+    const int error_data_len = MIN(
+        m->m_len, slirp->if_mtu - (sizeof(struct ip6) + ICMP6_ERROR_MINLEN));
     rip->ip_pl = htons(ICMP6_ERROR_MINLEN + error_data_len);
     t->m_len = sizeof(struct ip6) + ntohs(rip->ip_pl);
 
@@ -110,14 +112,13 @@ void icmp6_send_error(struct mbuf *m, uint8_t type, uint8_t code)
         ricmp->icmp6_err.unused = 0;
         break;
     case ICMP6_TOOBIG:
-        ricmp->icmp6_err.mtu = htonl(IF_MTU);
+        ricmp->icmp6_err.mtu = htonl(slirp->if_mtu);
         break;
     case ICMP6_PARAMPROB:
         /* TODO: Handle this case */
         break;
     default:
         g_assert_not_reached();
-        break;
     }
     t->m_data += ICMP6_ERROR_MINLEN;
     memcpy(t->m_data, m->m_data, error_data_len);
@@ -275,8 +276,7 @@ static void ndp_send_na(Slirp *slirp, struct ip6 *ip, struct icmp6 *icmp)
         rip->ip_dst = ip->ip_src;
     }
     rip->ip_nh = IPPROTO_ICMPV6;
-    rip->ip_pl = htons(ICMP6_NDP_NA_MINLEN
-                        + NDPOPT_LINKLAYER_LEN);
+    rip->ip_pl = htons(ICMP6_NDP_NA_MINLEN + NDPOPT_LINKLAYER_LEN);
     t->m_len = sizeof(struct ip6) + ntohs(rip->ip_pl);
 
     /* Build ICMPv6 packet */
@@ -299,8 +299,7 @@ static void ndp_send_na(Slirp *slirp, struct ip6 *ip, struct icmp6 *icmp)
     struct ndpopt *opt = mtod(t, struct ndpopt *);
     opt->ndpopt_type = NDPOPT_LINKLAYER_TARGET;
     opt->ndpopt_len = NDPOPT_LINKLAYER_LEN / 8;
-    in6_compute_ethaddr(ricmp->icmp6_nna.target,
-                    opt->ndpopt_linklayer);
+    in6_compute_ethaddr(ricmp->icmp6_nna.target, opt->ndpopt_linklayer);
 
     /* ICMPv6 Checksum */
     t->m_data -= ICMP6_NDP_NA_MINLEN;
@@ -314,7 +313,7 @@ static void ndp_send_na(Slirp *slirp, struct ip6 *ip, struct icmp6 *icmp)
  * Process a NDP message
  */
 static void ndp_input(struct mbuf *m, Slirp *slirp, struct ip6 *ip,
-        struct icmp6 *icmp)
+                      struct icmp6 *icmp)
 {
     m->m_len += ETH_HLEN;
     m->m_data -= ETH_HLEN;
@@ -325,9 +324,8 @@ static void ndp_input(struct mbuf *m, Slirp *slirp, struct ip6 *ip,
     switch (icmp->icmp6_type) {
     case ICMP6_NDP_RS:
         DEBUG_CALL(" type = Router Solicitation");
-        if (ip->ip_hl == 255
-                && icmp->icmp6_code == 0
-                && ntohs(ip->ip_pl) >= ICMP6_NDP_RS_MINLEN) {
+        if (ip->ip_hl == 255 && icmp->icmp6_code == 0 &&
+            ntohs(ip->ip_pl) >= ICMP6_NDP_RS_MINLEN) {
             /* Gratuitous NDP */
             ndp_table_add(slirp, ip->ip_src, eth->h_source);
 
@@ -343,12 +341,11 @@ static void ndp_input(struct mbuf *m, Slirp *slirp, struct ip6 *ip,
 
     case ICMP6_NDP_NS:
         DEBUG_CALL(" type = Neighbor Solicitation");
-        if (ip->ip_hl == 255
-                && icmp->icmp6_code == 0
-                && !IN6_IS_ADDR_MULTICAST(&icmp->icmp6_nns.target)
-                && ntohs(ip->ip_pl) >= ICMP6_NDP_NS_MINLEN
-                && (!in6_zero(&ip->ip_src)
-                    || in6_solicitednode_multicast(&ip->ip_dst))) {
+        if (ip->ip_hl == 255 && icmp->icmp6_code == 0 &&
+            !IN6_IS_ADDR_MULTICAST(&icmp->icmp6_nns.target) &&
+            ntohs(ip->ip_pl) >= ICMP6_NDP_NS_MINLEN &&
+            (!in6_zero(&ip->ip_src) ||
+             in6_solicitednode_multicast(&ip->ip_dst))) {
             if (in6_equal_host(&icmp->icmp6_nns.target)) {
                 /* Gratuitous NDP */
                 ndp_table_add(slirp, ip->ip_src, eth->h_source);
@@ -359,12 +356,10 @@ static void ndp_input(struct mbuf *m, Slirp *slirp, struct ip6 *ip,
 
     case ICMP6_NDP_NA:
         DEBUG_CALL(" type = Neighbor Advertisement");
-        if (ip->ip_hl == 255
-                && icmp->icmp6_code == 0
-                && ntohs(ip->ip_pl) >= ICMP6_NDP_NA_MINLEN
-                && !IN6_IS_ADDR_MULTICAST(&icmp->icmp6_nna.target)
-                && (!IN6_IS_ADDR_MULTICAST(&ip->ip_dst)
-                    || icmp->icmp6_nna.S == 0)) {
+        if (ip->ip_hl == 255 && icmp->icmp6_code == 0 &&
+            ntohs(ip->ip_pl) >= ICMP6_NDP_NA_MINLEN &&
+            !IN6_IS_ADDR_MULTICAST(&icmp->icmp6_nna.target) &&
+            (!IN6_IS_ADDR_MULTICAST(&ip->ip_dst) || icmp->icmp6_nna.S == 0)) {
             ndp_table_add(slirp, ip->ip_src, eth->h_source);
         }
         break;

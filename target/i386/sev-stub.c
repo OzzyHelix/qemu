@@ -12,7 +12,6 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "sev_i386.h"
 
 SevInfo *sev_get_info(void)
@@ -45,7 +44,13 @@ char *sev_get_launch_measurement(void)
     return NULL;
 }
 
-SevCapability *sev_get_capabilities(void)
+SevCapability *sev_get_capabilities(Error **errp)
 {
+    error_setg(errp, "SEV is not available in this QEMU");
     return NULL;
+}
+int sev_inject_launch_secret(const char *hdr, const char *secret,
+                             uint64_t gpa, Error **errp)
+{
+    return 1;
 }

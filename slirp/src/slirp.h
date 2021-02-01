@@ -13,16 +13,16 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-# include <winsock2.h>
-# include <windows.h>
-# include <ws2tcpip.h>
-# include <sys/timeb.h>
-# include <iphlpapi.h>
+#include <winsock2.h>
+#include <windows.h>
+#include <ws2tcpip.h>
+#include <sys/timeb.h>
+#include <iphlpapi.h>
 
 #else
-# if !defined(__HAIKU__)
-#  define O_BINARY 0
-# endif
+#if !defined(__HAIKU__)
+#define O_BINARY 0
+#endif
 #endif
 
 #ifndef _WIN32
@@ -34,7 +34,7 @@
 #endif
 
 #ifdef __APPLE__
-# include <sys/filio.h>
+#include <sys/filio.h>
 #endif
 
 /* Avoid conflicting with the libc insque() and remque(), which
@@ -45,7 +45,6 @@
 
 #include "debug.h"
 #include "util.h"
-#include "qtailq.h"
 
 #include "libslirp.h"
 #include "ip.h"
@@ -67,29 +66,29 @@
 #include "bootp.h"
 #include "tftp.h"
 
-#define ARPOP_REQUEST 1         /* ARP request */
-#define ARPOP_REPLY   2         /* ARP reply   */
+#define ARPOP_REQUEST 1 /* ARP request */
+#define ARPOP_REPLY 2 /* ARP reply   */
 
 struct ethhdr {
-    unsigned char  h_dest[ETH_ALEN];   /* destination eth addr */
-    unsigned char  h_source[ETH_ALEN]; /* source ether addr    */
-    unsigned short h_proto;            /* packet type ID field */
+    unsigned char h_dest[ETH_ALEN]; /* destination eth addr */
+    unsigned char h_source[ETH_ALEN]; /* source ether addr    */
+    unsigned short h_proto; /* packet type ID field */
 };
 
 struct slirp_arphdr {
-    unsigned short ar_hrd;      /* format of hardware address */
-    unsigned short ar_pro;      /* format of protocol address */
-    unsigned char  ar_hln;      /* length of hardware address */
-    unsigned char  ar_pln;      /* length of protocol address */
-    unsigned short ar_op;       /* ARP opcode (command)       */
+    unsigned short ar_hrd; /* format of hardware address */
+    unsigned short ar_pro; /* format of protocol address */
+    unsigned char ar_hln; /* length of hardware address */
+    unsigned char ar_pln; /* length of protocol address */
+    unsigned short ar_op; /* ARP opcode (command)       */
 
     /*
      *  Ethernet looks like this : This bit is variable sized however...
      */
     unsigned char ar_sha[ETH_ALEN]; /* sender hardware address */
-    uint32_t      ar_sip;           /* sender IP address       */
+    uint32_t ar_sip; /* sender IP address       */
     unsigned char ar_tha[ETH_ALEN]; /* target hardware address */
-    uint32_t      ar_tip;           /* target IP address       */
+    uint32_t ar_tip; /* target IP address       */
 } SLIRP_PACKED;
 
 #define ARP_TABLE_SIZE 16
@@ -99,14 +98,15 @@ typedef struct ArpTable {
     int next_victim;
 } ArpTable;
 
-void arp_table_add(Slirp *slirp, uint32_t ip_addr, uint8_t ethaddr[ETH_ALEN]);
+void arp_table_add(Slirp *slirp, uint32_t ip_addr,
+                   const uint8_t ethaddr[ETH_ALEN]);
 
 bool arp_table_search(Slirp *slirp, uint32_t ip_addr,
                       uint8_t out_ethaddr[ETH_ALEN]);
 
 struct ndpentry {
-    unsigned char   eth_addr[ETH_ALEN];     /* sender hardware address */
-    struct in6_addr ip_addr;                /* sender IP address       */
+    unsigned char eth_addr[ETH_ALEN]; /* sender hardware address */
+    struct in6_addr ip_addr; /* sender IP address       */
 };
 
 #define NDP_TABLE_SIZE 16
@@ -122,7 +122,6 @@ bool ndp_table_search(Slirp *slirp, struct in6_addr ip_addr,
                       uint8_t out_ethaddr[ETH_ALEN]);
 
 struct Slirp {
-    QTAILQ_ENTRY(Slirp) entry;
     unsigned time_fasttimo;
     unsigned last_slowtimo;
     bool do_slowtimo;
@@ -146,19 +145,24 @@ struct Slirp {
     int restricted;
     struct gfwd_list *guestfwd_list;
 
+    int if_mtu;
+    int if_mru;
+
+    bool disable_host_loopback;
+
     /* mbuf states */
     struct quehead m_freelist;
     struct quehead m_usedlist;
     int mbuf_alloced;
 
     /* if states */
-    struct quehead if_fastq;   /* fast queue (for interactive data) */
-    struct quehead if_batchq;  /* queue for non-interactive data */
-    bool if_start_busy;     /* avoid if_start recursion */
+    struct quehead if_fastq; /* fast queue (for interactive data) */
+    struct quehead if_batchq; /* queue for non-interactive data */
+    bool if_start_busy; /* avoid if_start recursion */
 
     /* ip states */
-    struct ipq ipq;         /* ip reass. queue */
-    uint16_t ip_id;         /* ip packet ctr, for ids */
+    struct ipq ipq; /* ip reass. queue */
+    uint16_t ip_id; /* ip packet ctr, for ids */
 
     /* bootp/dhcp states */
     BOOTPClient bootp_clients[NB_BOOTP_CLIENTS];
@@ -170,8 +174,8 @@ struct Slirp {
     /* tcp states */
     struct socket tcb;
     struct socket *tcp_last_so;
-    tcp_seq tcp_iss;        /* tcp initial send seq # */
-    uint32_t tcp_now;       /* for RFC 1323 timestamps */
+    tcp_seq tcp_iss; /* tcp initial send seq # */
+    uint32_t tcp_now; /* for RFC 1323 timestamps */
 
     /* udp states */
     struct socket udb;
@@ -192,8 +196,13 @@ struct Slirp {
     GRand *grand;
     void *ra_timer;
 
+    bool enable_emu;
+
     const SlirpCb *cb;
     void *opaque;
+
+    struct sockaddr_in *outbound_addr;
+    struct sockaddr_in6 *outbound_addr6;
 };
 
 void if_start(Slirp *);
@@ -214,7 +223,7 @@ extern bool slirp_do_keepalive;
 #define TCP_MAXIDLE (TCPTV_KEEPCNT * TCPTV_KEEPINTVL)
 
 /* dnssearch.c */
-int translate_dnssearch(Slirp *s, const char ** names);
+int translate_dnssearch(Slirp *s, const char **names);
 
 /* cksum.c */
 int cksum(struct mbuf *m, int len);
@@ -255,20 +264,20 @@ void tcp_init(Slirp *);
 void tcp_cleanup(Slirp *);
 void tcp_template(struct tcpcb *);
 void tcp_respond(struct tcpcb *, register struct tcpiphdr *,
-        register struct mbuf *, tcp_seq, tcp_seq, int, unsigned short);
-struct tcpcb * tcp_newtcpcb(struct socket *);
-struct tcpcb * tcp_close(register struct tcpcb *);
+                 register struct mbuf *, tcp_seq, tcp_seq, int, unsigned short);
+struct tcpcb *tcp_newtcpcb(struct socket *);
+struct tcpcb *tcp_close(register struct tcpcb *);
 void tcp_sockclosed(struct tcpcb *);
 int tcp_fconnect(struct socket *, unsigned short af);
 void tcp_connect(struct socket *);
-int tcp_attach(struct socket *);
+void tcp_attach(struct socket *);
 uint8_t tcp_tos(struct socket *);
 int tcp_emu(struct socket *, struct mbuf *);
 int tcp_ctl(struct socket *);
 struct tcpcb *tcp_drop(struct tcpcb *tp, int err);
 
-struct socket *
-slirp_find_ctl_socket(Slirp *slirp, struct in_addr guest_addr, int guest_port);
+struct socket *slirp_find_ctl_socket(Slirp *slirp, struct in_addr guest_addr,
+                                     int guest_port);
 
 void slirp_send_packet_all(Slirp *slirp, const void *buf, size_t len);
 

@@ -184,7 +184,6 @@ static void *net_slirp_timer_new(SlirpTimerCb cb,
 
 static void net_slirp_timer_free(void *timer, void *opaque)
 {
-    timer_del(timer);
     timer_free(timer);
 }
 
@@ -456,7 +455,7 @@ static int net_slirp_init(NetClientState *peer, const char *model,
         error_setg(errp, "Failed to parse DNS");
         return -1;
     }
-    if ((dns.s_addr & mask.s_addr) != net.s_addr) {
+    if (restricted && (dns.s_addr & mask.s_addr) != net.s_addr) {
         error_setg(errp, "DNS doesn't belong to network");
         return -1;
     }
@@ -474,7 +473,7 @@ static int net_slirp_init(NetClientState *peer, const char *model,
         return -1;
     }
     if (dhcp.s_addr == host.s_addr || dhcp.s_addr == dns.s_addr) {
-        error_setg(errp, "DNS must be different from host and DNS");
+        error_setg(errp, "DHCP must be different from host and DNS");
         return -1;
     }
 
@@ -498,7 +497,8 @@ static int net_slirp_init(NetClientState *peer, const char *model,
     }
     if (vprefix6_len < 0 || vprefix6_len > 126) {
         error_setg(errp,
-                   "Invalid prefix provided (prefix len must be in range 0-126");
+                   "Invalid IPv6 prefix provided "
+                   "(IPv6 prefix length must be between 0 and 126)");
         return -1;
     }
 
@@ -521,7 +521,7 @@ static int net_slirp_init(NetClientState *peer, const char *model,
             error_setg(errp, "Failed to parse IPv6 DNS");
             return -1;
         }
-        if (!in6_equal_net(&ip6_prefix, &ip6_dns, vprefix6_len)) {
+        if (restricted && !in6_equal_net(&ip6_prefix, &ip6_dns, vprefix6_len)) {
             error_setg(errp, "IPv6 DNS doesn't belong to network");
             return -1;
         }
@@ -575,7 +575,7 @@ static int net_slirp_init(NetClientState *peer, const char *model,
      * specific version?
      */
     g_assert(slirp_state_version() == 4);
-    register_savevm_live(NULL, "slirp", 0, slirp_state_version(),
+    register_savevm_live("slirp", 0, slirp_state_version(),
                          &savevm_slirp_state, s->slirp);
 
     s->poll_notifier.notify = net_slirp_poll_notify;
@@ -609,25 +609,13 @@ error:
     return -1;
 }
 
-static SlirpState *slirp_lookup(Monitor *mon, const char *hub_id,
-                                const char *name)
+static SlirpState *slirp_lookup(Monitor *mon, const char *id)
 {
-    if (name) {
-        NetClientState *nc;
-        if (hub_id) {
-            nc = net_hub_find_client_by_name(strtol(hub_id, NULL, 0), name);
-            if (!nc) {
-                monitor_printf(mon, "unrecognized (hub-id, stackname) pair\n");
-                return NULL;
-            }
-            warn_report("Using 'hub-id' is deprecated, specify the netdev id "
-                        "directly instead");
-        } else {
-            nc = qemu_find_netdev(name);
-            if (!nc) {
-                monitor_printf(mon, "unrecognized netdev id '%s'\n", name);
-                return NULL;
-            }
+    if (id) {
+        NetClientState *nc = qemu_find_netdev(id);
+        if (!nc) {
+            monitor_printf(mon, "unrecognized netdev id '%s'\n", id);
+            return NULL;
         }
         if (strcmp(nc->model, "user")) {
             monitor_printf(mon, "invalid device specified\n");
@@ -654,16 +642,12 @@ void hmp_hostfwd_remove(Monitor *mon, const QDict *qdict)
     int err;
     const char *arg1 = qdict_get_str(qdict, "arg1");
     const char *arg2 = qdict_get_try_str(qdict, "arg2");
-    const char *arg3 = qdict_get_try_str(qdict, "arg3");
 
-    if (arg3) {
-        s = slirp_lookup(mon, arg1, arg2);
-        src_str = arg3;
-    } else if (arg2) {
-        s = slirp_lookup(mon, NULL, arg1);
+    if (arg2) {
+        s = slirp_lookup(mon, arg1);
         src_str = arg2;
     } else {
-        s = slirp_lookup(mon, NULL, NULL);
+        s = slirp_lookup(mon, NULL);
         src_str = arg1;
     }
     if (!s) {
@@ -783,16 +767,12 @@ void hmp_hostfwd_add(Monitor *mon, const QDict *qdict)
     SlirpState *s;
     const char *arg1 = qdict_get_str(qdict, "arg1");
     const char *arg2 = qdict_get_try_str(qdict, "arg2");
-    const char *arg3 = qdict_get_try_str(qdict, "arg3");
 
-    if (arg3) {
-        s = slirp_lookup(mon, arg1, arg2);
-        redir_str = arg3;
-    } else if (arg2) {
-        s = slirp_lookup(mon, NULL, arg1);
+    if (arg2) {
+        s = slirp_lookup(mon, arg1);
         redir_str = arg2;
     } else {
-        s = slirp_lookup(mon, NULL, NULL);
+        s = slirp_lookup(mon, NULL);
         redir_str = arg1;
     }
     if (s) {
