@@ -153,7 +153,6 @@ struct VirtMachineState {
     MemMapEntry *memmap;
     char *pciehb_nodename;
     const int *irqmap;
-    void *fdt;
     int fdt_size;
     uint32_t clock_phandle;
     uint32_t gic_phandle;
@@ -165,6 +164,8 @@ struct VirtMachineState {
     DeviceState *acpi_dev;
     Notifier powerdown_notifier;
     PCIBus *bus;
+    char *oem_id;
+    char *oem_table_id;
 };
 
 #define VIRT_ECAM_ID(high) (high ? VIRT_HIGH_PCIE_ECAM : VIRT_PCIE_ECAM)

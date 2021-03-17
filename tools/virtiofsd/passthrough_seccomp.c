@@ -21,7 +21,7 @@
 #endif
 #endif
 
-static const int syscall_whitelist[] = {
+static const int syscall_allowlist[] = {
     /* TODO ireg sem*() syscalls */
     SCMP_SYS(brk),
     SCMP_SYS(capget), /* For CAP_FSETID */
@@ -65,6 +65,7 @@ static const int syscall_whitelist[] = {
     SCMP_SYS(linkat),
     SCMP_SYS(listxattr),
     SCMP_SYS(lseek),
+    SCMP_SYS(_llseek), /* For POWER */
     SCMP_SYS(madvise),
     SCMP_SYS(mkdirat),
     SCMP_SYS(mknodat),
@@ -88,6 +89,7 @@ static const int syscall_whitelist[] = {
     SCMP_SYS(renameat),
     SCMP_SYS(renameat2),
     SCMP_SYS(removexattr),
+    SCMP_SYS(restart_syscall),
     SCMP_SYS(rt_sigaction),
     SCMP_SYS(rt_sigprocmask),
     SCMP_SYS(rt_sigreturn),
@@ -115,12 +117,12 @@ static const int syscall_whitelist[] = {
 };
 
 /* Syscalls used when --syslog is enabled */
-static const int syscall_whitelist_syslog[] = {
+static const int syscall_allowlist_syslog[] = {
     SCMP_SYS(send),
     SCMP_SYS(sendto),
 };
 
-static void add_whitelist(scmp_filter_ctx ctx, const int syscalls[], size_t len)
+static void add_allowlist(scmp_filter_ctx ctx, const int syscalls[], size_t len)
 {
     size_t i;
 
@@ -151,10 +153,10 @@ void setup_seccomp(bool enable_syslog)
         exit(1);
     }
 
-    add_whitelist(ctx, syscall_whitelist, G_N_ELEMENTS(syscall_whitelist));
+    add_allowlist(ctx, syscall_allowlist, G_N_ELEMENTS(syscall_allowlist));
     if (enable_syslog) {
-        add_whitelist(ctx, syscall_whitelist_syslog,
-                      G_N_ELEMENTS(syscall_whitelist_syslog));
+        add_allowlist(ctx, syscall_allowlist_syslog,
+                      G_N_ELEMENTS(syscall_allowlist_syslog));
     }
 
     /* libvhost-user calls this for post-copy migration, we don't need it */

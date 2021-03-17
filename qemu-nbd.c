@@ -328,7 +328,7 @@ static void *nbd_client_thread(void *arg)
 
 static int nbd_can_accept(void)
 {
-    return state == RUNNING && nb_fds < shared;
+    return state == RUNNING && (shared == 0 || nb_fds < shared);
 }
 
 static void nbd_update_server_watch(void);
@@ -503,6 +503,7 @@ static const char *socket_activation_validate_opts(const char *device,
 static void qemu_nbd_shutdown(void)
 {
     job_cancel_sync_all();
+    blk_exp_close_all();
     bdrv_close_all();
 }
 
@@ -706,7 +707,7 @@ int main(int argc, char **argv)
             break;
         case 'e':
             if (qemu_strtoi(optarg, NULL, 0, &shared) < 0 ||
-                shared < 1) {
+                shared < 0) {
                 error_report("Invalid shared device number '%s'", optarg);
                 exit(EXIT_FAILURE);
             }
@@ -963,8 +964,16 @@ int main(int argc, char **argv)
 
     server = qio_net_listener_new();
     if (socket_activation == 0) {
+        int backlog;
+
+        if (persistent || shared == 0) {
+            backlog = SOMAXCONN;
+        } else {
+            backlog = MIN(shared, SOMAXCONN);
+        }
         saddr = nbd_build_socket_address(sockpath, bindto, port);
-        if (qio_net_listener_open_sync(server, saddr, 1, &local_err) < 0) {
+        if (qio_net_listener_open_sync(server, saddr, backlog,
+                                       &local_err) < 0) {
             object_unref(OBJECT(server));
             error_report_err(local_err);
             exit(EXIT_FAILURE);

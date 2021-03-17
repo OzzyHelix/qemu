@@ -547,9 +547,7 @@ static void gd_switch(DisplayChangeListener *dcl,
     VirtualConsole *vc = container_of(dcl, VirtualConsole, gfx.dcl);
     bool resized = true;
 
-    trace_gd_switch(vc->label,
-                    surface ? surface_width(surface)  : 0,
-                    surface ? surface_height(surface) : 0);
+    trace_gd_switch(vc->label, surface_width(surface), surface_height(surface));
 
     if (vc->gfx.surface) {
         cairo_surface_destroy(vc->gfx.surface);
@@ -560,16 +558,12 @@ static void gd_switch(DisplayChangeListener *dcl,
         vc->gfx.convert = NULL;
     }
 
-    if (vc->gfx.ds && surface &&
+    if (vc->gfx.ds &&
         surface_width(vc->gfx.ds) == surface_width(surface) &&
         surface_height(vc->gfx.ds) == surface_height(surface)) {
         resized = false;
     }
     vc->gfx.ds = surface;
-
-    if (!surface) {
-        return;
-    }
 
     if (surface->format == PIXMAN_x8r8g8b8) {
         /*
@@ -623,9 +617,20 @@ static const DisplayChangeListenerOps dcl_ops = {
 
 #if defined(CONFIG_OPENGL)
 
-/** DisplayState Callbacks (opengl version) **/
+static bool gd_has_dmabuf(DisplayChangeListener *dcl)
+{
+    VirtualConsole *vc = container_of(dcl, VirtualConsole, gfx.dcl);
 
-#if defined(CONFIG_OPENGL)
+    if (gtk_use_gl_area && !gtk_widget_get_realized(vc->gfx.drawing_area)) {
+        /* FIXME: Assume it will work, actual check done after realize */
+        /* fixing this would require delaying listener registration */
+        return true;
+    }
+
+    return vc->gfx.has_dmabuf;
+}
+
+/** DisplayState Callbacks (opengl version) **/
 
 static const DisplayChangeListenerOps dcl_gl_area_ops = {
     .dpy_name             = "gtk-egl",
@@ -639,12 +644,14 @@ static const DisplayChangeListenerOps dcl_gl_area_ops = {
     .dpy_gl_ctx_create       = gd_gl_area_create_context,
     .dpy_gl_ctx_destroy      = gd_gl_area_destroy_context,
     .dpy_gl_ctx_make_current = gd_gl_area_make_current,
-    .dpy_gl_ctx_get_current  = gd_gl_area_get_current_context,
     .dpy_gl_scanout_texture  = gd_gl_area_scanout_texture,
+    .dpy_gl_scanout_disable  = gd_gl_area_scanout_disable,
     .dpy_gl_update           = gd_gl_area_scanout_flush,
+    .dpy_gl_scanout_dmabuf   = gd_gl_area_scanout_dmabuf,
+    .dpy_has_dmabuf          = gd_has_dmabuf,
 };
 
-#endif /* CONFIG_OPENGL */
+#ifdef CONFIG_X11
 
 static const DisplayChangeListenerOps dcl_egl_ops = {
     .dpy_name             = "gtk-egl",
@@ -658,7 +665,6 @@ static const DisplayChangeListenerOps dcl_egl_ops = {
     .dpy_gl_ctx_create       = gd_egl_create_context,
     .dpy_gl_ctx_destroy      = qemu_egl_destroy_context,
     .dpy_gl_ctx_make_current = gd_egl_make_current,
-    .dpy_gl_ctx_get_current  = qemu_egl_get_current_context,
     .dpy_gl_scanout_disable  = gd_egl_scanout_disable,
     .dpy_gl_scanout_texture  = gd_egl_scanout_texture,
     .dpy_gl_scanout_dmabuf   = gd_egl_scanout_dmabuf,
@@ -666,13 +672,16 @@ static const DisplayChangeListenerOps dcl_egl_ops = {
     .dpy_gl_cursor_position  = gd_egl_cursor_position,
     .dpy_gl_release_dmabuf   = gd_egl_release_dmabuf,
     .dpy_gl_update           = gd_egl_scanout_flush,
+    .dpy_has_dmabuf          = gd_has_dmabuf,
 };
+
+#endif
 
 #endif /* CONFIG_OPENGL */
 
 /** QEMU Events **/
 
-static void gd_change_runstate(void *opaque, int running, RunState state)
+static void gd_change_runstate(void *opaque, bool running, RunState state)
 {
     GtkDisplayState *s = opaque;
 
@@ -786,8 +795,12 @@ static gboolean gd_draw_event(GtkWidget *widget, cairo_t *cr, void *opaque)
             /* invoke render callback please */
             return FALSE;
         } else {
+#ifdef CONFIG_X11
             gd_egl_draw(vc);
             return TRUE;
+#else
+            abort();
+#endif
         }
     }
 #endif
@@ -1775,7 +1788,16 @@ static gboolean gd_vc_in(VteTerminal *terminal, gchar *text, guint size,
         }
     }
 
-    qemu_chr_be_write(vc->vte.chr, (uint8_t  *)text, (unsigned int)size);
+    int remaining = size;
+    uint8_t* p = (uint8_t *)text;
+    while (remaining > 0) {
+        int can_write = qemu_chr_be_can_write(vc->vte.chr);
+        int written = MIN(remaining, can_write);
+        qemu_chr_be_write(vc->vte.chr, p, written);
+
+        remaining -= written;
+        p += written;
+    }
     return TRUE;
 }
 
@@ -1980,6 +2002,18 @@ static GtkWidget *gd_create_menu_machine(GtkDisplayState *s)
     return machine_menu;
 }
 
+#if defined(CONFIG_OPENGL)
+static void gl_area_realize(GtkGLArea *area, VirtualConsole *vc)
+{
+    gtk_gl_area_make_current(area);
+    qemu_egl_display = eglGetCurrentDisplay();
+    vc->gfx.has_dmabuf = qemu_egl_has_dmabuf();
+    if (!vc->gfx.has_dmabuf) {
+        error_report("GtkGLArea console lacks DMABUF support.");
+    }
+}
+#endif
+
 static GSList *gd_vc_gfx_init(GtkDisplayState *s, VirtualConsole *vc,
                               QemuConsole *con, int idx,
                               GSList *group, GtkWidget *view_menu)
@@ -1993,13 +2027,13 @@ static GSList *gd_vc_gfx_init(GtkDisplayState *s, VirtualConsole *vc,
 
 #if defined(CONFIG_OPENGL)
     if (display_opengl) {
-#if defined(CONFIG_OPENGL)
         if (gtk_use_gl_area) {
             vc->gfx.drawing_area = gtk_gl_area_new();
+            g_signal_connect(vc->gfx.drawing_area, "realize",
+                             G_CALLBACK(gl_area_realize), vc);
             vc->gfx.dcl.ops = &dcl_gl_area_ops;
-        } else
-#endif /* CONFIG_OPENGL */
-        {
+        } else {
+#ifdef CONFIG_X11
             vc->gfx.drawing_area = gtk_drawing_area_new();
             /*
              * gtk_widget_set_double_buffered() was deprecated in 3.14.
@@ -2012,6 +2046,10 @@ static GSList *gd_vc_gfx_init(GtkDisplayState *s, VirtualConsole *vc,
             gtk_widget_set_double_buffered(vc->gfx.drawing_area, FALSE);
 #pragma GCC diagnostic pop
             vc->gfx.dcl.ops = &dcl_egl_ops;
+            vc->gfx.has_dmabuf = qemu_egl_has_dmabuf();
+#else
+            abort();
+#endif
         }
     } else
 #endif
@@ -2322,8 +2360,10 @@ static void early_gtk_display_init(DisplayOptions *opts)
         } else
 #endif
         {
+#ifdef CONFIG_X11
             DisplayGLMode mode = opts->has_gl ? opts->gl : DISPLAYGL_MODE_ON;
             gtk_egl_init(mode);
+#endif
         }
 #endif
     }

@@ -6,7 +6,7 @@
 #include "exec/memory.h"
 #include "sysemu/hostmem.h"
 #include "sysemu/blockdev.h"
-#include "sysemu/accel.h"
+#include "qemu/accel.h"
 #include "qapi/qapi-types-machine.h"
 #include "qemu/module.h"
 #include "qom/object.h"
@@ -128,6 +128,7 @@ typedef struct {
  * @kvm_type:
  *    Return the type of KVM corresponding to the kvm-type string option or
  *    computed based on other criteria such as the host kernel capabilities.
+ *    kvm-type may be NULL if it is not needed.
  * @numa_mem_supported:
  *    true if '--numa node.mem' option is supported and false otherwise
  * @smp_parse:
@@ -258,6 +259,7 @@ struct MachineState {
 
     /*< public >*/
 
+    void *fdt;
     char *dtb;
     char *dumpdtb;
     int phandle_start;
@@ -270,7 +272,7 @@ struct MachineState {
     bool iommu;
     bool suppress_vmdesc;
     bool enable_graphics;
-    char *memory_encryption;
+    ConfidentialGuestSupport *cgs;
     char *ram_memdev_id;
     /*
      * convenience alias to ram_memdev_id backend memory region

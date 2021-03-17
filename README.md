@@ -48,15 +48,14 @@ Ubuntu: ```sudo apt-get install spice-protocol python3-defaults ceph libiscsi gl
 
 
  ``` 
-  git clone https://github.com/OzzyHelix/qemu.git
-  cd qemu
-  mkdir build
-  cd build
-  ../configure --prefix=/opt/qemu-test --python=/usr/bin/python  --target-list=x86_64-softmmu --audio-drv-list=pa --disable-werror 
-  # if you have a custom location for your python3 binary do --python=/path/to/python/binary
-  make 
-  # optionally you can use the -j flag to compile faster. if 16 cores are present in system. do 12 example: make -j12
-  sudo make install
+git clone https://github.com/OzzyHelix/qemu.git
+cd qemu
+mkdir build && cd build
+../configure --prefix=/opt/qemu-test --python=/usr/bin/python  --target-list=x86_64-softmmu --audio-drv-list=pa --disable-werror
+# if you have a custom location for your python3 binary do --python=/path/to/python/binary
+make 
+# optionally you can use the -j flag to compile faster. if 16 cores are present in system. do 12 example: make -j12
+sudo make install # or you can run x86_64-softmmu/qemu-system-x86_64
   ```
 
 Additional information can also be found online via the QEMU website:
