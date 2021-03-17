@@ -25,6 +25,7 @@
 #include "qemu/osdep.h"
 #include "audio/audio.h"
 #include "block/block.h"
+#include "block/export.h"
 #include "chardev/char.h"
 #include "crypto/cipher.h"
 #include "crypto/init.h"
@@ -217,7 +218,7 @@ void runstate_set(RunState new_state)
     current_run_state = new_state;
 }
 
-int runstate_is_running(void)
+bool runstate_is_running(void)
 {
     return runstate_check(RUN_STATE_RUNNING);
 }
@@ -316,7 +317,7 @@ void qemu_del_vm_change_state_handler(VMChangeStateEntry *e)
     g_free(e);
 }
 
-void vm_state_notify(int running, RunState state)
+void vm_state_notify(bool running, RunState state)
 {
     VMChangeStateEntry *e, *next;
 
@@ -526,6 +527,9 @@ void qemu_system_reset_request(ShutdownCause reason)
 {
     if (reboot_action == REBOOT_ACTION_SHUTDOWN &&
         reason != SHUTDOWN_CAUSE_SUBSYSTEM_RESET) {
+        shutdown_requested = reason;
+    } else if (!cpus_are_resettable()) {
+        error_report("cpus are not resettable, terminating");
         shutdown_requested = reason;
     } else {
         reset_requested = reason;
@@ -783,6 +787,14 @@ void qemu_cleanup(void)
      * try to do this early so that it also stops using devices.
      */
     migration_shutdown();
+
+    /*
+     * Close the exports before draining the block layer. The export
+     * drivers may have coroutines yielding on it, so we need to clean
+     * them up before the drain, as otherwise they may be get stuck in
+     * blk_wait_while_drained().
+     */
+    blk_exp_close_all();
 
     /*
      * We must cancel all block jobs while the block layer is drained,

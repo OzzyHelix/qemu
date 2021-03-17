@@ -615,7 +615,7 @@ static int add_channel(void *opaque, const char *name, const char *value,
     return 0;
 }
 
-static void vm_change_state_handler(void *opaque, int running,
+static void vm_change_state_handler(void *opaque, bool running,
                                     RunState state)
 {
     if (running) {
@@ -623,6 +623,14 @@ static void vm_change_state_handler(void *opaque, int running,
     } else if (state != RUN_STATE_PAUSED) {
         qemu_spice_display_stop();
     }
+}
+
+void qemu_spice_display_init_done(void)
+{
+    if (runstate_is_running()) {
+        qemu_spice_display_start();
+    }
+    qemu_add_vm_change_state_handler(vm_change_state_handler, NULL);
 }
 
 static void qemu_spice_init(void)
@@ -796,7 +804,6 @@ static void qemu_spice_init(void)
 
     qemu_spice_input_init();
 
-    qemu_add_vm_change_state_handler(vm_change_state_handler, NULL);
     qemu_spice_display_stop();
 
     g_free(x509_key_file);
