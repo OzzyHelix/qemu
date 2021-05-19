@@ -357,7 +357,7 @@ struct BlockDriver {
      * of in-flight requests, so don't waste the time if possible.
      *
      * One example usage is to avoid waiting for an nbd target node reconnect
-     * timeout during job-cancel.
+     * timeout during job-cancel with force=true.
      */
     void (*bdrv_cancel_in_flight)(BlockDriverState *bs);
 
@@ -789,6 +789,8 @@ struct BdrvChildClass {
     bool (*can_set_aio_ctx)(BdrvChild *child, AioContext *ctx,
                             GSList **ignore, Error **errp);
     void (*set_aio_ctx)(BdrvChild *child, AioContext *ctx, GSList **ignore);
+
+    AioContext *(*get_parent_aio_context)(BdrvChild *child);
 };
 
 extern const BdrvChildClass child_of_bds;
@@ -810,11 +812,6 @@ struct BdrvChild {
      * BdrvChild is still attached to it. (BLK_PERM_* bitmask)
      */
     uint64_t shared_perm;
-
-    /* backup of permissions during permission update procedure */
-    bool has_backup_perm;
-    uint64_t backup_perm;
-    uint64_t backup_shared_perm;
 
     /*
      * This link is frozen: the child can neither be replaced nor
@@ -957,12 +954,8 @@ struct BlockDriverState {
      */
     int64_t total_sectors;
 
-    /* Callback before write request is processed */
-    NotifierWithReturnList before_write_notifiers;
-
     /* threshold limit for writes, in bytes. "High water mark". */
     uint64_t write_threshold_offset;
-    NotifierWithReturn write_threshold_notifier;
 
     /* Writing to the list requires the BQL _and_ the dirty_bitmap_mutex.
      * Reading from the list can be done with either the BQL or the
@@ -1086,15 +1079,6 @@ void bdrv_parse_filename_strip_prefix(const char *filename, const char *prefix,
 
 bool bdrv_backing_overridden(BlockDriverState *bs);
 
-
-/**
- * bdrv_add_before_write_notifier:
- *
- * Register a callback that is invoked before write requests are processed but
- * after any throttling or waiting for overlapping requests.
- */
-void bdrv_add_before_write_notifier(BlockDriverState *bs,
-                                    NotifierWithReturn *notifier);
 
 /**
  * bdrv_add_aio_context_notifier:
@@ -1306,7 +1290,6 @@ BdrvChild *bdrv_root_attach_child(BlockDriverState *child_bs,
                                   const char *child_name,
                                   const BdrvChildClass *child_class,
                                   BdrvChildRole child_role,
-                                  AioContext *ctx,
                                   uint64_t perm, uint64_t shared_perm,
                                   void *opaque, Error **errp);
 void bdrv_root_unref_child(BdrvChild *child);
