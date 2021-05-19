@@ -30,6 +30,7 @@
 #include "block/blockjob_int.h"
 #include "block/block_int.h"
 #include "block/coroutines.h"
+#include "block/write-threshold.h"
 #include "qemu/cutils.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
@@ -133,12 +134,39 @@ static void bdrv_merge_limits(BlockLimits *dst, const BlockLimits *src)
     dst->max_iov = MIN_NON_ZERO(dst->max_iov, src->max_iov);
 }
 
-void bdrv_refresh_limits(BlockDriverState *bs, Error **errp)
+typedef struct BdrvRefreshLimitsState {
+    BlockDriverState *bs;
+    BlockLimits old_bl;
+} BdrvRefreshLimitsState;
+
+static void bdrv_refresh_limits_abort(void *opaque)
+{
+    BdrvRefreshLimitsState *s = opaque;
+
+    s->bs->bl = s->old_bl;
+}
+
+static TransactionActionDrv bdrv_refresh_limits_drv = {
+    .abort = bdrv_refresh_limits_abort,
+    .clean = g_free,
+};
+
+/* @tran is allowed to be NULL, in this case no rollback is possible. */
+void bdrv_refresh_limits(BlockDriverState *bs, Transaction *tran, Error **errp)
 {
     ERRP_GUARD();
     BlockDriver *drv = bs->drv;
     BdrvChild *c;
     bool have_limits;
+
+    if (tran) {
+        BdrvRefreshLimitsState *s = g_new(BdrvRefreshLimitsState, 1);
+        *s = (BdrvRefreshLimitsState) {
+            .bs = bs,
+            .old_bl = bs->bl,
+        };
+        tran_add(tran, &bdrv_refresh_limits_drv, s);
+    }
 
     memset(&bs->bl, 0, sizeof(bs->bl));
 
@@ -156,7 +184,7 @@ void bdrv_refresh_limits(BlockDriverState *bs, Error **errp)
     QLIST_FOREACH(c, &bs->children, next) {
         if (c->role & (BDRV_CHILD_DATA | BDRV_CHILD_FILTERED | BDRV_CHILD_COW))
         {
-            bdrv_refresh_limits(c->bs, errp);
+            bdrv_refresh_limits(c->bs, tran, errp);
             if (*errp) {
                 return;
             }
@@ -1981,8 +2009,8 @@ bdrv_co_write_req_prepare(BdrvChild *child, int64_t offset, int64_t bytes,
         } else {
             assert(child->perm & BLK_PERM_WRITE);
         }
-        return notifier_with_return_list_notify(&bs->before_write_notifiers,
-                                                req);
+        bdrv_write_threshold_check_write(bs, offset, bytes);
+        return 0;
     case BDRV_TRACKED_TRUNCATE:
         assert(child->perm & BLK_PERM_RESIZE);
         return 0;
@@ -3135,12 +3163,6 @@ bool bdrv_qiov_is_aligned(BlockDriverState *bs, QEMUIOVector *qiov)
     }
 
     return true;
-}
-
-void bdrv_add_before_write_notifier(BlockDriverState *bs,
-                                    NotifierWithReturn *notifier)
-{
-    notifier_with_return_list_add(&bs->before_write_notifiers, notifier);
 }
 
 void bdrv_io_plug(BlockDriverState *bs)

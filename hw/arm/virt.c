@@ -36,7 +36,6 @@
 #include "monitor/qdev.h"
 #include "qapi/error.h"
 #include "hw/sysbus.h"
-#include "hw/boards.h"
 #include "hw/arm/boot.h"
 #include "hw/arm/primecell.h"
 #include "hw/arm/virt.h"
@@ -48,11 +47,10 @@
 #include "sysemu/device_tree.h"
 #include "sysemu/numa.h"
 #include "sysemu/runstate.h"
-#include "sysemu/sysemu.h"
 #include "sysemu/tpm.h"
 #include "sysemu/kvm.h"
 #include "hw/loader.h"
-#include "exec/address-spaces.h"
+#include "qapi/error.h"
 #include "qemu/bitops.h"
 #include "qemu/error-report.h"
 #include "qemu/module.h"
@@ -1524,8 +1522,10 @@ static void virt_build_smbios(VirtMachineState *vms)
                         vmc->smbios_old_sys_ver ? "1.0" : mc->name, false,
                         true, SMBIOS_ENTRY_POINT_30);
 
-    smbios_get_tables(MACHINE(vms), NULL, 0, &smbios_tables, &smbios_tables_len,
-                      &smbios_anchor, &smbios_anchor_len);
+    smbios_get_tables(MACHINE(vms), NULL, 0,
+                      &smbios_tables, &smbios_tables_len,
+                      &smbios_anchor, &smbios_anchor_len,
+                      &error_fatal);
 
     if (smbios_anchor) {
         fw_cfg_add_file(vms->fw_cfg, "etc/smbios/smbios-tables",
@@ -2757,10 +2757,15 @@ static void machvirt_machine_init(void)
 }
 type_init(machvirt_machine_init);
 
+static void virt_machine_6_1_options(MachineClass *mc)
+{
+}
+DEFINE_VIRT_MACHINE_AS_LATEST(6, 1)
+
 static void virt_machine_6_0_options(MachineClass *mc)
 {
 }
-DEFINE_VIRT_MACHINE_AS_LATEST(6, 0)
+DEFINE_VIRT_MACHINE(6, 0)
 
 static void virt_machine_5_2_options(MachineClass *mc)
 {

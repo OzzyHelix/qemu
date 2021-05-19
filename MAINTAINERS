@@ -207,19 +207,6 @@ F: disas/hppa.c
 F: hw/net/*i82596*
 F: include/hw/net/lasi_82596.h
 
-LM32 TCG CPUs
-R: Michael Walle <michael@walle.cc>
-S: Orphan
-F: target/lm32/
-F: disas/lm32.c
-F: hw/lm32/
-F: hw/*/lm32_*
-F: hw/*/milkymist-*
-F: include/hw/display/milkymist_tmu2.h
-F: include/hw/char/lm32_juart.h
-F: include/hw/lm32/
-F: tests/tcg/lm32/
-
 M68K TCG CPUs
 M: Laurent Vivier <laurent@vivier.eu>
 S: Maintained
@@ -258,14 +245,6 @@ MIPS TCG CPUs (nanoMIPS ISA)
 S: Orphan
 F: disas/nanomips.*
 
-Moxie TCG CPUs
-M: Anthony Green <green@moxielogic.com>
-S: Maintained
-F: target/moxie/
-F: disas/moxie.c
-F: hw/moxie/
-F: default-configs/*/moxie-softmmu.mak
-
 NiosII TCG CPUs
 M: Chris Wulff <crwulff@gmail.com>
 M: Marek Vasut <marex@denx.de>
@@ -295,9 +274,8 @@ F: tests/acceptance/machine_ppc.py
 
 RISC-V TCG CPUs
 M: Palmer Dabbelt <palmer@dabbelt.com>
-M: Alistair Francis <Alistair.Francis@wdc.com>
-M: Sagar Karandikar <sagark@eecs.berkeley.edu>
-M: Bastian Koppelmann <kbastian@mail.uni-paderborn.de>
+M: Alistair Francis <alistair.francis@wdc.com>
+M: Bin Meng <bin.meng@windriver.com>
 L: qemu-riscv@nongnu.org
 S: Supported
 F: target/riscv/
@@ -339,19 +317,12 @@ F: hw/sparc64/
 F: include/hw/sparc/sparc64.h
 F: disas/sparc.c
 
-UniCore32 TCG CPUs
-M: Guan Xuetao <gxt@mprc.pku.edu.cn>
-S: Maintained
-F: target/unicore32/
-F: hw/unicore32/
-F: include/hw/unicore32/
-
 X86 TCG CPUs
 M: Paolo Bonzini <pbonzini@redhat.com>
 M: Richard Henderson <richard.henderson@linaro.org>
 M: Eduardo Habkost <ehabkost@redhat.com>
 S: Maintained
-F: target/i386/
+F: target/i386/tcg/
 F: tests/tcg/i386/
 F: tests/tcg/x86_64/
 F: hw/i386/
@@ -404,7 +375,8 @@ F: target/arm/kvm.c
 MIPS KVM CPUs
 M: Huacai Chen <chenhuacai@kernel.org>
 S: Odd Fixes
-F: target/mips/kvm.c
+F: target/mips/kvm*
+F: target/mips/sysemu/
 
 PPC KVM CPUs
 M: David Gibson <david@gibson.dropbear.id.au>
@@ -509,6 +481,15 @@ F: accel/stubs/hax-stub.c
 F: include/sysemu/hax.h
 F: target/i386/hax/
 
+Guest CPU Cores (NVMM)
+----------------------
+NetBSD Virtual Machine Monitor (NVMM) CPU support
+M: Kamil Rytarowski <kamil@netbsd.org>
+M: Reinoud Zandijk <reinoud@netbsd.org>
+S: Maintained
+F: include/sysemu/nvmm.h
+F: target/i386/nvmm/
+
 Hosts
 -----
 LINUX
@@ -529,6 +510,8 @@ F: include/qemu/*posix*.h
 
 NETBSD
 M: Kamil Rytarowski <kamil@netbsd.org>
+M: Reinoud Zandijk <reinoud@netbsd.org>
+M: Ryo ONODERA <ryoon@netbsd.org>
 S: Maintained
 K: ^Subject:.*(?i)NetBSD
 
@@ -1026,6 +1009,7 @@ F: include/hw/misc/pca9552*.h
 F: hw/net/ftgmac100.c
 F: include/hw/net/ftgmac100.h
 F: docs/system/arm/aspeed.rst
+F: tests/qtest/*aspeed*
 
 NRF51
 M: Joel Stanley <joel@jms.id.au>
@@ -1075,18 +1059,6 @@ S: Odd Fixes
 F: default-configs/*/hppa-softmmu.mak
 F: hw/hppa/
 F: pc-bios/hppa-firmware.img
-
-LM32 Machines
--------------
-EVR32 and uclinux BSP
-R: Michael Walle <michael@walle.cc>
-S: Orphan
-F: hw/lm32/lm32_boards.c
-
-milkymist
-R: Michael Walle <michael@walle.cc>
-S: Orphan
-F: hw/lm32/milkymist.c
 
 M68K Machines
 -------------
@@ -1364,6 +1336,16 @@ F: pc-bios/canyonlands.dt[sb]
 F: pc-bios/u-boot-sam460ex-20100605.bin
 F: roms/u-boot-sam460ex
 
+pegasos2
+M: BALATON Zoltan <balaton@eik.bme.hu>
+R: David Gibson <david@gibson.dropbear.id.au>
+L: qemu-ppc@nongnu.org
+S: Maintained
+F: hw/ppc/pegasos2.c
+F: hw/pci-host/mv64361.c
+F: hw/pci-host/mv643xx.h
+F: include/hw/pci-host/mv64361.h
+
 RISC-V Machines
 ---------------
 OpenTitan
@@ -1391,6 +1373,15 @@ F: include/hw/char/mchp_pfsoc_mmuart.h
 F: include/hw/misc/mchp_pfsoc_dmc.h
 F: include/hw/misc/mchp_pfsoc_ioscb.h
 F: include/hw/misc/mchp_pfsoc_sysreg.h
+
+Shakti C class SoC
+M: Vijai Kumar K <vijai@behindbytes.com>
+L: qemu-riscv@nongnu.org
+S: Supported
+F: hw/riscv/shakti_c.c
+F: hw/char/shakti_uart.c
+F: include/hw/riscv/shakti_c.h
+F: include/hw/char/shakti_uart.h
 
 SiFive Machines
 M: Alistair Francis <Alistair.Francis@wdc.com>
@@ -1517,14 +1508,6 @@ S: Supported
 F: hw/s390x/s390-pci*
 F: include/hw/s390x/s390-pci*
 L: qemu-s390x@nongnu.org
-
-UniCore32 Machines
-------------------
-PKUnity-3 SoC initramfs-with-busybox
-M: Guan Xuetao <gxt@mprc.pku.edu.cn>
-S: Maintained
-F: hw/*/puv3*
-F: hw/unicore32/
 
 X86 Machines
 ------------
@@ -1804,6 +1787,7 @@ USB
 M: Gerd Hoffmann <kraxel@redhat.com>
 S: Maintained
 F: hw/usb/*
+F: stubs/usb-dev-stub.c
 F: tests/qtest/usb-*-test.c
 F: docs/usb2.txt
 F: docs/usb-storage.txt
@@ -1972,7 +1956,7 @@ M: Keith Busch <kbusch@kernel.org>
 M: Klaus Jensen <its@irrelevant.dk>
 L: qemu-block@nongnu.org
 S: Supported
-F: hw/block/nvme*
+F: hw/nvme/*
 F: include/block/nvme.h
 F: tests/qtest/nvme-test.c
 F: docs/system/nvme.rst
@@ -2039,6 +2023,12 @@ M: Sven Schnelle <svens@stackframe.org>
 S: Maintained
 F: hw/net/tulip.c
 F: hw/net/tulip.h
+
+pca954x
+M: Patrick Venture <venture@google.com>
+S: Maintained
+F: hw/i2c/i2c_mux_pca954x.c
+F: include/hw/i2c/i2c_mux_pca954x.h
 
 Generic Loader
 M: Alistair Francis <alistair@alistair23.me>
@@ -2445,6 +2435,7 @@ F: ui/cocoa.m
 Main loop
 M: Paolo Bonzini <pbonzini@redhat.com>
 S: Maintained
+F: include/exec/gen-icount.h
 F: include/qemu/main-loop.h
 F: include/sysemu/runstate.h
 F: include/sysemu/runstate-action.h
@@ -2531,6 +2522,12 @@ Benchmark util
 M: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
 S: Maintained
 F: scripts/simplebench/
+
+Transactions helper
+M: Vladimir Sementsov-Ogievskiy <vsementsov@virtuozzo.com>
+S: Maintained
+F: include/qemu/transactions.h
+F: util/transactions.c
 
 QAPI
 M: Markus Armbruster <armbru@redhat.com>
@@ -3050,12 +3047,6 @@ L: qemu-block@nongnu.org
 S: Supported
 F: block/rbd.c
 
-Sheepdog
-M: Liu Yuan <namei.unix@gmail.com>
-L: qemu-block@nongnu.org
-S: Odd Fixes
-F: block/sheepdog.c
-
 VHDX
 M: Jeff Cody <codyprime@gmail.com>
 L: qemu-block@nongnu.org
@@ -3254,6 +3245,8 @@ F: block/export/vhost-user-blk-server.c
 F: block/export/vhost-user-blk-server.h
 F: include/qemu/vhost-user-server.h
 F: tests/qtest/libqos/vhost-user-blk.c
+F: tests/qtest/libqos/vhost-user-blk.h
+F: tests/qtest/vhost-user-blk-test.c
 F: util/vhost-user-server.c
 
 FUSE block device exports
