@@ -52,7 +52,7 @@ mkdir build && cd build
 ../configure --prefix=/opt/qemu-test --python=/usr/bin/python  --target-list=x86_64-softmmu --audio-drv-list=pa --disable-werror 
 # if you have a custom location for your python3 binary do --python=/path/to/python/binary
 make 
-# I would use the -j flag to make thecompiling go faster it scales the job with the amount of cores you give it so I have 12 cores/threads 
+# I would use the -j flag to make compiling go faster it scales the job with the amount of cores you give it so I have 12 cores/threads 
 so an example: make -j12
 sudo make install
   ```
