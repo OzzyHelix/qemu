@@ -1,4 +1,4 @@
-Disclamer: This has only been tested on Arch Linux Kernel: 5.10.12-zen1-1-zen so results may vary. Build instructions will be arch related as a result I'll try throwing in Ubuntu instructions
+Disclamer: This has only been tested on Arch Linux Kernel: 5.10.12-zen1-1-zen so results may vary. Build instructions will be arch related as a result
 ===========
 
 
@@ -44,19 +44,16 @@ first it requires python 3.5 and above
 
 Arch: ```sudo pacman -Syu spice-protocol python ceph libiscsi glusterfs ninja```
 
-Ubuntu: ```sudo apt-get install spice-protocol python3-defaults ceph libiscsi glusterfs ninja-build``` 
-
 
  ``` 
-  git clone https://github.com/OzzyHelix/qemu.git
-  cd qemu
-  mkdir build
-  cd build
-  ../configure --prefix=/opt/qemu-test --python=/usr/bin/python  --target-list=x86_64-softmmu --audio-drv-list=pa --disable-werror 
-  # if you have a custom location for your python3 binary do --python=/path/to/python/binary
-  make 
-  # optionally you can use the -j flag to compile faster. if 16 cores are present in system. do 12 example: make -j12
-  sudo make install
+git clone -b spheenik-qemu https://github.com/OzzyHelix/qemu.git
+cd qemu
+mkdir build && cd build
+../configure --prefix=/opt/qemu-test --python=/usr/bin/python  --target-list=x86_64-softmmu --audio-drv-list=pa --disable-werror 
+# if you have a custom location for your python3 binary do --python=/path/to/python/binary
+make 
+# I would use the -j flag to make the binary compiling go faster example: make -j12
+sudo make install
   ```
 
 Additional information can also be found online via the QEMU website:
