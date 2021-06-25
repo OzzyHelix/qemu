@@ -20,7 +20,6 @@
 #include "qemu/osdep.h"
 #include "cpu.h"
 #include "exec/gdbstub.h"
-#include "exec/helper-proto.h"
 #include "internal.h"
 
 static int ppc_gdb_register_len_apple(int n)
@@ -272,7 +271,7 @@ int ppc_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
             break;
         case 70:
             /* fpscr */
-            store_fpscr(env, ldtul_p(mem_buf), 0xffffffff);
+            ppc_store_fpscr(env, ldtul_p(mem_buf));
             break;
         }
     }
@@ -322,7 +321,7 @@ int ppc_cpu_gdb_write_register_apple(CPUState *cs, uint8_t *mem_buf, int n)
             break;
         case 70 + 32:
             /* fpscr */
-            store_fpscr(env, ldq_p(mem_buf), 0xffffffff);
+            ppc_store_fpscr(env, ldq_p(mem_buf));
             break;
         }
     }
@@ -475,7 +474,7 @@ static int gdb_set_float_reg(CPUPPCState *env, uint8_t *mem_buf, int n)
     }
     if (n == 32) {
         ppc_maybe_bswap_register(env, mem_buf, 4);
-        store_fpscr(env, ldl_p(mem_buf), 0xffffffff);
+        ppc_store_fpscr(env, ldl_p(mem_buf));
         return 4;
     }
     return 0;
@@ -498,7 +497,7 @@ static int gdb_get_avr_reg(CPUPPCState *env, GByteArray *buf, int n)
         return 16;
     }
     if (n == 32) {
-        gdb_get_reg32(buf, helper_mfvscr(env));
+        gdb_get_reg32(buf, ppc_get_vscr(env));
         mem_buf = gdb_get_reg_ptr(buf, 4);
         ppc_maybe_bswap_register(env, mem_buf, 4);
         return 4;
@@ -529,7 +528,7 @@ static int gdb_set_avr_reg(CPUPPCState *env, uint8_t *mem_buf, int n)
     }
     if (n == 32) {
         ppc_maybe_bswap_register(env, mem_buf, 4);
-        helper_mtvscr(env, ldl_p(mem_buf));
+        ppc_store_vscr(env, ldl_p(mem_buf));
         return 4;
     }
     if (n == 33) {

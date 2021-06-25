@@ -21,6 +21,15 @@ typedef struct DisasContext {
     /* Thumb-2 conditional execution bits.  */
     int condexec_mask;
     int condexec_cond;
+    /* M-profile ECI/ICI exception-continuable instruction state */
+    int eci;
+    /*
+     * trans_ functions for insns which are continuable should set this true
+     * after decode (ie after any UNDEF checks)
+     */
+    bool eci_handled;
+    /* TCG op to rewind to if this turns out to be an invalid ECI state */
+    TCGOp *insn_eci_rewind;
     int thumb;
     int sctlr_b;
     MemOp be_data;
@@ -127,6 +136,11 @@ static inline int negate(DisasContext *s, int x)
     return -x;
 }
 
+static inline int plus_1(DisasContext *s, int x)
+{
+    return x + 1;
+}
+
 static inline int plus_2(DisasContext *s, int x)
 {
     return x + 2;
@@ -140,6 +154,11 @@ static inline int times_2(DisasContext *s, int x)
 static inline int times_4(DisasContext *s, int x)
 {
     return x * 4;
+}
+
+static inline int times_2_plus_1(DisasContext *s, int x)
+{
+    return x * 2 + 1;
 }
 
 static inline int arm_dc_feature(DisasContext *dc, int feature)

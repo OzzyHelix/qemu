@@ -703,10 +703,10 @@ static void spapr_dt_cpu(CPUState *cs, void *fdt, int offset,
     _FDT((fdt_setprop_string(fdt, offset, "status", "okay")));
     _FDT((fdt_setprop(fdt, offset, "64-bit", NULL, 0)));
 
-    if (env->spr_cb[SPR_PURR].oea_read) {
+    if (ppc_has_spr(cpu, SPR_PURR)) {
         _FDT((fdt_setprop_cell(fdt, offset, "ibm,purr", 1)));
     }
-    if (env->spr_cb[SPR_SPURR].oea_read) {
+    if (ppc_has_spr(cpu, SPR_PURR)) {
         _FDT((fdt_setprop_cell(fdt, offset, "ibm,spurr", 1)));
     }
 
@@ -979,6 +979,7 @@ static void spapr_dt_ov5_platform_support(SpaprMachineState *spapr, void *fdt,
          */
         val[1] = SPAPR_OV5_XIVE_LEGACY; /* XICS */
         val[3] = 0x00; /* Hash */
+        spapr_check_mmu_mode(false);
     } else if (kvm_enabled()) {
         if (kvmppc_has_cap_mmu_radix() && kvmppc_has_cap_mmu_hash_v3()) {
             val[3] = 0x80; /* OV5_MMU_BOTH */
@@ -1004,7 +1005,7 @@ static void spapr_dt_chosen(SpaprMachineState *spapr, void *fdt, bool reset)
     _FDT(chosen = fdt_add_subnode(fdt, 0, "chosen"));
 
     if (reset) {
-        const char *boot_device = machine->boot_order;
+        const char *boot_device = spapr->boot_device;
         char *stdout_path = spapr_vio_stdout_path(spapr->vio_bus);
         size_t cb = 0;
         char *bootlist = get_boot_devices_list(&cb);
@@ -1551,6 +1552,22 @@ void spapr_setup_hpt(SpaprMachineState *spapr)
             error_report("Unable to create %" HWADDR_PRIu
                          "MiB RMA (VRMA only allows %" HWADDR_PRIu "MiB",
                          spapr->rma_size / MiB, vrma_limit / MiB);
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+void spapr_check_mmu_mode(bool guest_radix)
+{
+    if (guest_radix) {
+        if (kvm_enabled() && !kvmppc_has_cap_mmu_radix()) {
+            error_report("Guest requested unavailable MMU mode (radix).");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        if (kvm_enabled() && kvmppc_has_cap_mmu_radix()
+            && !kvmppc_has_cap_mmu_hash_v3()) {
+            error_report("Guest requested unavailable MMU mode (hash).");
             exit(EXIT_FAILURE);
         }
     }
@@ -2359,8 +2376,10 @@ static SaveVMHandlers savevm_htab_handlers = {
 static void spapr_boot_set(void *opaque, const char *boot_device,
                            Error **errp)
 {
-    MachineState *machine = MACHINE(opaque);
-    machine->boot_order = g_strdup(boot_device);
+    SpaprMachineState *spapr = SPAPR_MACHINE(opaque);
+
+    g_free(spapr->boot_device);
+    spapr->boot_device = g_strdup(boot_device);
 }
 
 static void spapr_create_lmb_dr_connectors(SpaprMachineState *spapr)
